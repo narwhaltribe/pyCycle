@@ -1,5 +1,8 @@
-This plugin provides basic thermodynamic cycle modeling tools for OpenMDAO. It's main feature
-is the inclusion of a FlowStation variable that provides access to isentropic flow relationships.
+This plugin provides basic thermodynamic cycle modeling tools for OpenMDAO. It's main feature is the inclusion of a FlowStation variable that provides access to isentropic flow relationships.
+
+### Differences from Justin's Code
+
+This fork aims to update the plugin to comply with OpenMDAO 1.0 Alpha.
 
 # Pre-Reqs
 
