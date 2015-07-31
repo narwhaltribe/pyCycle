@@ -1,436 +1,405 @@
-__all__ = ['FlowStation']
-
 from os.path import dirname, join
-
-from openmdao.main.api import VariableTree
-from openmdao.lib.datatypes.api import Float, VarTree, Enum
-
 from Cantera import *
 
-import pycycle #used to find file paths
+import pycycle
 
-GAS_CONSTANT = 0.0685592 #BTU/lbm-R
+GAS_CONSTANT = 0.0685592 # BTU/lbm-R
 
-#secant solver with a limit on overall step size
-def secant(func, x0, TOL=1e-7, x_min=1e15, x_max=1e15, maxdx = 1e15 ):
+class FlowStationData:
+    def __init__(self, station_name, _flow, _species, reactant_names, reactant_splits, num_reactants, _trigger, _mach_or_area):
+        self.station_name    = station_name
+        self._flow           = _flow
+        self._species        = _species
+        self.reactant_names  = reactant_names
+        self.reactant_splits = reactant_splits
+        self.num_reactants   = num_reactants
+        self._trigger        = _trigger
+        self._mach_or_area   = _mach_or_area
+
+def _secant(func, x0, TOL=1e-7, x_min=1e15, x_max=1e15, maxdx=1e15 ):
+    '''Secant solver with a limit on overall step size'''
     if x0 >= 0:
-        x1 = x0*(1 + 1e-2) + 1e-2
+        x1 = x0 * (1 + 1e-2) + 1e-2
     else:
-        x1 = x0*(1 + 1e-2) - 1e-2
+        x1 = x0 * (1 + 1e-2) - 1e-2
     f1, f = func(x1), func(x0)
-    if (abs(f) > abs(f1)):
-        x1, x0 = x0, x1 
+    if abs(f) > abs(f1):
+        x1, x0 = x0, x1
         f1, f = f, f1
-    dx = f * (x0 - x1) / float(f - f1)  
-    
-    count = 0  
-    while 1:
-        if abs(dx) < TOL * (1 + abs(x0)): 
-        #if abs((f1-f)/(f+1e-10)) < TOL: 
+    dx = f * (x0 - x1) / float(f - f1)
+    count = 0
+    while True:
+        if abs(dx) < TOL * (1 + abs(x0)):
             return x0 -dx
-        dx = f * (x0 - x1) / float(f - f1)  
-        df = abs((f1-f)/(f+1e-10))      
-        
-        if abs( dx ) > maxdx:
-            dx = maxdx*dx/abs(dx)
-
-        if x0-dx < x_min: 
-            #x1, x0 = x0, x0*(1+.01*abs(dx)/dx)
-            x1, x0 = x0, (x_min+x0)/2
-        elif x0-dx > x_max: 
-            x1, x0 = x0, (x_max+x0)/2
-        else:    
+        dx = f * (x0 - x1) / float(f - f1)
+        df = abs((f1 - f) / (f + 1e-10))
+        if abs(dx) > maxdx:
+            dx = maxdx * dx / abs(dx)
+        if x0 - dx < x_min:
+            x1, x0 = x0, (x_min + x0) / 2
+        elif x0 - dx > x_max:
+            x1, x0 = x0, (x_max + x0) / 2
+        else:
             x1, x0 = x0, x0 - dx
-        f1, f = f, func(x0) 
-        count = count + 1
+        f1, f = f, func(x0)
+        count += 1
 
+def init_flowstation(add_var, station_name):
+    '''Adds FlowStation variables to a component's parameters and returns '''
+    def add_all(all_vars):
+        for var_name, args in all_vars.iteritems():
+            default_value, desc, units = args[0], args[1], args[2]
+            add_var('%s:%s' % (station_name, var_name), default_value, desc=desc, units=units)
+    add_all({
+        'ht':       (0.0, 'total enthalpy', 'Btu/lbm'),
+        'Tt':       (0.0, 'total temperature', 'degR'),
+        'Pt':       (0.0, 'total pressure', 'lbf/inch**2'),
+        'rhot':     (0.0, 'total density', 'lbm/ft**3'),
+        'gamt':     (0.0, 'total gamma', None),
+        'Cp':       (0.0, 'specific heat at constant pressure', 'Btu/lbm*degR'),
+        'Cv':       (0.0, 'specific heat at constant voluem', 'Btu/lbm*degR'),
+        's':        (0.0, 'entropy', 'Btu/(lbm*R)'),
+        'W':        (0.0, 'weight flow', 'lbm/s'),
+        'FAR':      (0.0, 'fuel to air ratio', None),
+        'WAR':      (0.0, 'weight to air ratio', None),
+        'hs':       (0.0, 'static enthalpy', 'Btu/lbm'),
+        'Ts':       (0.0, 'static temperature', 'degR'),
+        'Ps':       (0.0, 'static pressure', 'lbf/inch**2'),
+        'rhos':     (0.0, 'static density', 'lbm/ft**3'),
+        'gams':     (0.0, 'static gamma', None),
+        'Vflow':    (0.0, 'velocity', 'ft/s'),
+        'Vsonic':   (0.0, 'speed of sound', 'ft/s'),
+        'Mach':     (0.0, 'mach number', None),
+        'area':     (0.0, 'flow area', 'inch**2'),
+        'is_super': (False, 'selects preference for supersonic versus subsonic solution when setting area', None),
+        'Wc':       (0.0, 'corrected weight flow', 'lbm/s')
+    })
+    #properties file path
+    _dir = dirname(pycycle.__file__)
+    _prop_file = join(_dir, 'gri1000.cti')
+    _flow = importPhase(_prop_file)
+    _species = [1.0, 0, 0, 0, 0, 0, 0, 0]
+    reactant_names = [[0 for x in xrange(6)] for x in xrange(6)]
+    reactant_splits = [[0 for x in xrange(6)] for x in xrange(6)]
+    num_reactants = 0
+    _trigger = 0
+    _mach_or_area = 0
+    return FlowStationData(station_name, _flow, _species, reactant_names, reactant_splits, num_reactants, _trigger, _mach_or_area)
 
-class FlowStation(VariableTree):
+def _W_changed(variables, data): 
+    '''Trigger action on weight flow'''
+    if data._trigger == 0:
+        data._trigger = 1
+        setStatic(variables, data)
+        data._trigger = 0
 
-    reactants = []
-    
-    reactantNames = [[0 for x in xrange(6)] for x in xrange(6)]
-    reactantSplits =[[0 for x in xrange(6)] for x in xrange(6)]
-    numreacts = 0
-
-    ht=Float(0.0, desc='total enthalpy', units='Btu/lbm')
-    Tt=Float(0.0, desc='total temperature', units='degR')
-    Pt=Float(0.0, desc='total pressure', units='lbf/inch**2')
-    rhot=Float(0.0, desc='total density', units='lbm/ft**3') 
-    gamt=Float(0.0, desc='total gamma') 
-    Cp = Float(0.0, desc='Specific heat at constant pressure', units='Btu/(lbm*degR)')
-    Cv = Float(0.0, desc='Specific heat at constant volume', units='Btu/(lbm*degR)')
-    s =Float(0.0, desc='entropy', units='Btu/(lbm*R)')
-    W =Float(0.0, desc='weight flow', units='lbm/s') 
-    FAR =Float(0.0, desc='fuel to air ratio') 
-    WAR =Float(0.0, desc='water to air ratio') 
-    hs=Float(0.0, desc='static enthalpy', units='Btu/lbm')
-    Ts=Float(0.0, desc='static temperature', units='degR')
-    Ps=Float(0.0, desc='static pressure', units='lbf/inch**2')
-    rhos=Float(0.0, desc='static density', units='lbm/ft**3')
-    gams=Float(0.0, desc='static gamma')    
-    Vflow =Float(0.0, desc='Velocity', units='ft/s')   
-    Vsonic=Float(0.0, desc='Speed of sound', units='ft/s')
-    Mach=Float(0.0, desc='Mach number')
-    area =Float(0.0, desc='flow area', units='inch**2') 
-    #mu = Float(0.0, desc='dynamic viscosity', units='lbm/(s*ft)')
-
-    sub_or_super = Enum(('sub','super'), desc="selects preference for subsonic or supersonice solution when setting area")
-
-    Wc = Float(0.0, desc='corrected weight flow', units='lbm/s') 
-
-
-    #intialize station        
-    def __init__(self,*args,**kwargs): 
-        super(FlowStation, self).__init__(*args,**kwargs)
-
-        #properties file path
-        _dir = dirname(pycycle.__file__)
-        _prop_file = join(_dir,'gri1000.cti')
-
-        self.reactantNames=[[0 for x in xrange(6)] for x in xrange(6)]
-        self.reactantSplits=[[0 for x in xrange(6)] for x in xrange(6)]
-        self.numreacts = 0
-        self._trigger = 0
-        self._species=[1.0, 0, 0, 0, 0, 0, 0, 0]
-        self._mach_or_area=0 
-        self._flow=importPhase(_prop_file)
-        self._flow=importPhase(_prop_file)
-
-    #add a reactant that can be mixed in
-    @staticmethod
-    def add_reactant(reactants, splits ):
-    
-            FlowStation.reactantNames[FlowStation.numreacts][0] = reactants[0]
-            FlowStation.reactantNames[FlowStation.numreacts][1] = reactants[1]           
-            FlowStation.reactantNames[FlowStation.numreacts][2] = reactants[2]
-            FlowStation.reactantNames[FlowStation.numreacts][3] = reactants[3]
-            FlowStation.reactantNames[FlowStation.numreacts][4] = reactants[4]
-            FlowStation.reactantNames[FlowStation.numreacts][5] = reactants[5]
- 
-            FlowStation.reactantSplits[FlowStation.numreacts][0] = splits[0]
-            FlowStation.reactantSplits[FlowStation.numreacts][1] = splits[1]    
-            FlowStation.reactantSplits[FlowStation.numreacts][2] = splits[2]
-            FlowStation.reactantSplits[FlowStation.numreacts][3] = splits[3]   
-            FlowStation.reactantSplits[FlowStation.numreacts][4] = splits[4]
-            FlowStation.reactantSplits[FlowStation.numreacts][5] = splits[5]   
-            FlowStation.numreacts = FlowStation.numreacts + 1
-
-    def _W_changed(self): 
-        if self._trigger == 0:
-            self._trigger=1
-            self.setStatic()
-            self._trigger=0
-
-    #trigger action on Mach
-    def _Mach_changed(self):
-        if self._trigger == 0:
-            self._trigger=1
-            self._mach_or_area=1
-            self.setStatic()
-            self._trigger=0
+def _Mach_changed(variables, data):
+    '''Trigger action on Mach'''
+    if data._trigger == 0:
+        data._trigger = 1
+        data._mach_or_area = 1
+        setStatic(variables, data)
+        data._trigger = 0
                     
-    #trigger action on area        
-    def _area_changed(self):
-        if self._trigger == 0:
-            self._trigger=1
-            self._mach_or_area=2
-            self.setStatic()
-            self._trigger=0
+def _area_changed(variables, data):
+    '''Trigger action on area'''
+    if data._trigger == 0:
+        data._trigger = 1
+        data._mach_or_area = 2
+        setStatic(variables, data)
+        data._trigger = 0
            
-    #trigger action on static pressure       
-    def _Ps_changed(self):
-        if self._trigger == 0:
-            self._trigger=1
-            self._mach_or_area=3
-            self.setStatic()
-            self._trigger=0 
+def _Ps_changed(variables, data):
+    '''Trigger action on static pressure'''
+    if data._trigger == 0:
+        data._trigger = 1
+        data._mach_or_area = 3
+        setStatic(variables, data)
+        data._trigger = 0
 
-    def _setComp(self):
- 
-        #global reactantNames 
-        #global reactantSplits 
-        #global numreacts
-     
-        tempcomp = ''
-        compname    = ['', '', '', '', '', '', '', '', '', '', '', '']
-        fract = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        numcurrent = 0;
-        for cName in range ( 0, FlowStation.numreacts ):
-            for cSpecies in range( 0, 6 ):
-                if FlowStation.reactantSplits[cName][cSpecies]*self._species[cName] > 0.00001:
-                   fract[numcurrent]=FlowStation.reactantSplits[cName][cSpecies]*self._species[cName];        
-                   compname[numcurrent] = FlowStation.reactantNames[cName][cSpecies];
-                   numcurrent = numcurrent+1;
-    
-  
-        count1 = numcurrent-1
-        while count1 > -1:
-            count2 =  numcurrent-1
-            while count2 > -1:
-                if compname[count2] == compname[count1] and count1 != count2:
-                   fract[count1]=fract[count1]+fract[count2]
-                   fract[count2] = 0
+def _setComp(data):
+    tempcomp = ''
+    compname = ['', '', '', '', '', '', '', '', '', '', '', '']
+    fract = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    numcurrent = 0
+    for cName in range (0, num_reactants):
+        for cSpecies in range(0, 6):
+            if reactantSplits[cName][cSpecies] * data._species[cName] > 0.00001:
+               fract[numcurrent] = reactantSplits[cName][cSpecies] * data._species[cName]
+               compname[numcurrent] = reactantNames[cName][cSpecies]
+               numcurrent += 1
+    count1 = numcurrent - 1
+    while count1 > -1:
+        count2 = numcurrent - 1
+        while count2 > -1:
+            if compname[count2] == compname[count1] and count1 != count2:
+               fract[count1] = fract[count1] + fract[count2]
+               fract[count2] = 0
+            count2 -= 1
+        count1 -= 1
+    count1 = numcurrent - 1
+    while count1 > -1:
+         if fract[count1] > 0.000001:
+             tempcomp = tempcomp + str(compname[count1]) + ':' + str(fract[count1]) + ' '
+         count1 -= 1
+    data._flow.setMassFractions(tempcomp)
 
-                count2 = count2 - 1
-            count1 = count1 - 1
-  
-        count1 = numcurrent-1
-        while count1 > -1:      
-             if fract[count1] > .000001:
-                 tempcomp = tempcomp + str(compname[count1])+':' +str(fract[count1])+ ' '
-             count1 = count1 - 1
-        self._flow.setMassFractions( tempcomp )
-        self._flow.setMassFractions( tempcomp )
-
-
-    #set the composition to dry air
-    def setDryAir(self):
-        self._species[0]=1 
-        self.WAR=0
-        self.FAR=0
-        self._setComp()
-        self._trigger=0
+def setDryAir(variables, data):
+    '''Set the composition to dry air'''
+    sn = data.station_name
+    data._species[0] = 1
+    variables['%s:WAR' % sn] = 0
+    variables['%s:FAR' % sn] = 0
+    _setComp(data)
+    data._trigger = 0
         
-    #set the composition to pure mixture of one of the reactants    
-    def setReactant(self, i):
-    	self._species= [0,0,0,0,0,0]
-        self._species[i-1] = 1
+def setReactant(data, i):
+    '''Set the composition to pure mixture of one of the reactants'''
+    data._species= [0, 0, 0, 0, 0, 0]
+    data._species[i - 1] = 1
               
-    #set the compositon to air with water
-    def setWAR(self, WAR):
-        self._trigger=1
-        self.WAR=WAR
-        self.FAR=0
-        self._species[0]=(1)/(1+WAR)
-        self._species[1]=(WAR)/(1+WAR)
-        self._setComp()
-        self.setStatic()
-        self._trigger=0
+def setWAR(variables, data, WAR):
+    '''Set the compositon to air with water'''
+    sn = data.station_name
+    data._trigger = 1
+    variables['%s:WAR' % sn] = WAR
+    varialbes['%s:FAR' % sn] = 0
+    data._species[0] = 1 / (1 + WAR)
+    data._species[1] = WAR / (1 + WAR)
+    _setComp(data)
+    setStatic(variables, data)
+    self._trigger=0
         
-    def _total_calcs(self): 
-        self.ht=self._flow.enthalpy_mass()*0.0004302099943161011
-        self.s=self._flow.entropy_mass()*0.000238845896627
-        self.rhot=self._flow.density()*.0624
-        self.Tt=self._flow.temperature()*9./5.
-        self.Cp = self._flow.cp_mass()*2.388459e-4
-        self.Cv = self._flow.cv_mass()*2.388459e-4
-        self.gamt=self.Cp/self.Cv
-        #self._flow=self._flow
-        self.setStatic()
-        self.Wc = self.W*(self.Tt/518.67)**.5/(self.Pt/14.696)    
-        self.Vsonic=math.sqrt(self.gams*GasConstant*self._flow.temperature()/self._flow.meanMolecularWeight())*3.28084
+def _total_calcs(variables, data): 
+    sn = data.station_name
+    variables['%s:ht' % sn] = data._flow.enthalpy_mass() * 0.0004302099943161011
+    variables['%s:s' % sn] = data._flow.entropy_mass() * 0.000238845896627
+    variables['%s:rhot' % sn] = data._flow.density() * 0.0624
+    variables['%s:Tt' % sn] = data._flow.temperature() * 9.0 / 5.0
+    variables['%s:Cp' % sn] = data._flow.cp_mass() * 2.388459e-4
+    variables['%s:Cv' % sn] = data._flow.cv_mass() * 2.388459e-4
+    variables['%s:gamt' % sn] = variables['%s:Cp' % sn] / variables['%s:Cv' % sn]
+    setStatic(variables, data)
+    variables['%s:Wc' % sn] = variables['%s:W' % sn] * (variables['%s:Tt' % sn] / 518.67) ** 0.5 / (variables['%s:Pt' % sn] / 14.696)
+    variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data._flow.temperature() / data._flow.meanMolecularWeight()) * 3.28084
+    data._trigger = 0
 
-        #self.mu = self._flow.viscosity()*0.671968975    
-        self._trigger=0
+def setTotalTP(variables, data, Tin, Pin):
+    '''Set total conditions based on T an P'''
+    sn = data.station_name
+    _setComp(data)
+    data._trigger = 1
+    variables['%s:Tt' % sn] = Tin
+    variables['%s:Pt' % sn] = Pin
+    data._flow.set(T=Tin * 5.0 / 9.0, P=Pin * 6894.75729)
+    data._flow.equilibrate('TP')
+    _total_calcs(variables, data)
 
-    #set total conditions based on T an P
-    def setTotalTP(self, Tin, Pin):
-        self._setComp()    
-        self._trigger=1
-        self.Tt=Tin
-        self.Pt=Pin
-        self._flow.set(T=Tin*5./9., P=Pin*6894.75729)
-        self._flow.equilibrate('TP')
-        self._total_calcs()
-
-    #set total conditions based on h and P
-    def setTotal_hP(self, hin, Pin):
-        self._setComp()
-        self._trigger=1 
-        self.ht=hin
-        self.Pt=Pin
-        def f(Tt):
-            self._flow.set(T=Tt*5./9., P=Pin*6894.75729)
-            self._flow.equilibrate('TP') 
-            return hin - self._flow.enthalpy_mass()*0.0004302099943161011
-        secant(f, self.Tt, x_min=0 )
-        
-        self._total_calcs()               
+def setTotal_hP(variables, data, hin, Pin):
+    '''Set total conditions based on h and P'''
+    sn = data.station_name
+    _setComp(data)
+    data._trigger = 1
+    variables['%s:ht' % sn] = hin
+    variables['%s:Pt' % sn] = Pin
+    def f(Tt):
+        data._flow.set(T=Tt * 5.0 / 9.0, P=Pin * 6894.75729)
+        data._flow.equilibrate('TP')
+        return hin - data._flow.enthalpy_mass() * 0.0004302099943161011
+    _secant(f, variables['%s:Tt' %sn], x_min=0)
+    _total_calcs(variables, data)
 
 
-    #set total condition based on S and P
-    def setTotalSP(self, sin, Pin):
-        self._setComp()
-        self._trigger=1
-        self.s=sin
-        self.Pt=Pin             
-        self._flow.set(S=sin/0.000238845896627, P=Pin*6894.75729)
-        self._flow.equilibrate('SP', loglevel=1)
-        self._total_calcs()
-        self._trigger=0
+def setTotalSP(variables, data, sin, Pin):
+    '''Set total condition based on S and P'''
+    sn = data.station_name
+    _setComp(data)
+    data._trigger = 1
+    variables['%s:s' % sn] = sin
+    variables['%s:Pt' % sn] = Pin
+    data._flow.set(S=sin / 0.000238845896627, P=Pin * 6894.75729)
+    data._flow.equilibrate('SP', loglevel=1)
+    _total_calcs(variables, data)
+    data._trigger = 0
 
-    #add another station to this one
-    #mix enthalpies and keep pressure and this stations value
-    def add(self, FS2):
-        temp =""
-        for i in range(0, len(self._species)):
-                self._species[i]=(self.W*self._species[i]+FS2.W*FS2._species[i])/(self.W + FS2.W)
-        self._setComp()
-        air1 = self.W * ( 1. / ( 1. + self.FAR + self.WAR ))
-        air2 = FS2.W *( 1. / ( 1 + FS2.WAR + FS2.FAR ))
-        self.FAR = ( air1 * self.FAR + air2*FS2.FAR )/( air1 + air2 )
-        self.WAR = ( air1 * self.WAR + air2*FS2.WAR )/( air1 + air2 )
-        self.ht=(self.W*self.ht+FS2.W*FS2.ht)/(self.W+FS2.W)
-        self.W=self.W +(FS2.W)
-        self._flow.set(T=self.Tt*5./9., P=self.Pt*6894.75729) 
-        self._flow.equilibrate('TP')
-        self._flow.set(H=self.ht/0.0004302099943161011, P=self.Pt*6894.75729)
-        self._flow.equilibrate('HP')
-        self.Tt=self._flow.temperature()*9./5.
-        self.s=self._flow.entropy_mass()* 0.000238845896627
-        self.rhot=self._flow.density()*.0624
-        self.gamt=self._flow.cp_mass()/self._flow.cv_mass()          
+def add(variables, data, variables2, data2):
+    '''Add another station to this one; mix enthalpies and keep pressure and this stations value'''
+    sn1, sn2 = data.station_name, data2.station_name
+    vars1, vars2 = variables, variables2
+    temp = ''
+    for i in range(0, len(data._species)):
+            data._species[i] = (vars1['%s:W' % sn1] * data._species[i] + vars2['%s:W' % sn2] * data2._species[i]) / (vars1['%s:W' % sn1] + vars2['%s:W' % sn2])
+    _setComp(data)
+    air1 = vars1['%s:W' % sn1] * (1.0 / (1.0 + vars1['%s:FAR' % sn1] + vars1['%s:WAR' % sn1]))
+    air2 = vars2['%s:W' % sn2] * (1.0 / (1.0 + vars2['%s:FAR' % sn2] + vars2['%s:WAR' % sn2]))
+    vars1['%s:FAR' % sn1] = (air1 * vars1['%s:FAR' % sn1] + air2 * vars2['%s:FAR' % sn2]) / (air1 + air2)
+    vars1['%s:WAR' % sn1] = (air1 * vars1['%s:WAR' % sn1] + air2 * vars2['%s:WAR' % sn2]) / (air1 + air2)
+    vars1['%s:ht' % sn1] = (vars1['%s:W' % sn1] * vars1['%s:ht' % sn1] + vars2['%s:W' % sn2] * vars2['%s:ht' % sn2]) / (vars1['%s:W' % sn1] + vars2['%s:W' % sn2])
+    vars1['%s:W' % sn1] = vars1['%s:W' % sn1] + vars2['%s:W' % sn2])
+    data._flow.set(T=vars1['%s:Tt' % sn1] * 5.0 / 9.0, P=vars1['%s:Pt' % sn1] * 6894.75729)
+    data._flow.equilibrate('TP')
+    data._flow.set(H=vars1['%s:ht' % sn1] / 0.0004302099943161011, P=vars1['%s:Pt' % sn1] * 6894.75729)
+    data._flow.equilibrate('HP')
+    vars1['%s:Tt' % sn1] = data._flow.temperature() * 9.0 / 5.0
+    vars1['%s:s' % sn1] = data._flow.entropy_mass() * 0.000238845896627
+    vars1['%s:rhot' % sn1] = data._flow.density() * 0.0624
+    vars1['%s:gamt' % sn1] = data._flow.cp_mass() / data._flow.cv_mass()
+
+def copy_from(variables, data, variables2, data2):
+    '''Duplicates total properties from another flow station'''
+    sn1, sn2 = data.station_name, data2.station_name
+    vars1, vars2 = variables, variables2
+    data._species = data2._species[:]
+    vars1['%s:ht' % sn1]   = vars2['%s:ht' % sn2]
+    vars1['%s:Tt' % sn1]   = vars2['%s:Tt' % sn2]
+    vars1['%s:Pt' % sn1]   = vars2['%s:Pt' % sn2]
+    vars1['%s:rhot' % sn1] = vars2['%s:rhot' % sn2]
+    vars1['%s:gamt' % sn1] = vars2['%s:gamt' % sn2]
+    vars1['%s:s' % sn1]    = vars2['%s:s' % sn2]
+    vars1['%s:W' % sn1]    = vars2['%s:W' % sn2]
+    vars1['%s:FAR' % sn1]  = vars2['%s:FAR' % sn2]
+    vars1['%s:WAR' % sn1]  = vars2['%s:WAR' % sn2]
+    temp =''
+    _setComp(data)
+    data._flow.set(T=vars1['%s:Tt' % sn1] * 5.0 / 9.0, P=vars1['%s:Pt' % sn1] * 6894.75729)
+    data._flow.equilibrate('TP')
                     
-    def copy_from(self, FS2):
-        """duplicates total properties from another flow station""" 
-        self._species = FS2._species[:]
-        self.ht=FS2.ht
-        self.Tt=FS2.Tt
-        self.Pt=FS2.Pt
-        self.rhot=FS2.rhot
-        self.gamt=FS2.gamt
-        self.s =FS2.s
-        self.W =FS2.W
-        self.FAR =FS2.FAR
-        self.WAR =FS2.WAR
-        temp =""
-        self._setComp()
-        self._flow.set(T=self.Tt*5./9., P=self.Pt*6894.75729)
-        self._flow.equilibrate('TP')
-                    
-    #burn a fuel with this station        
-    def burn(self, fuel, Wfuel, hfuel):
-        flow_1=self.W
-        self.W=self.W + Wfuel 
-        for i in range(0, len(self._species)):            
-            if ( fuel - 1 ) == i:
-                self._species[i]=(flow_1*self._species[i]+Wfuel)/ self.W
-            else:
-                self._species[i]=(flow_1*self._species[i])/ self.W
-        self.ht= (flow_1 * self.ht + Wfuel * hfuel)/ self.W
-        air1=flow_1 * (1. / (1. + self.FAR + self.WAR))
-        self.FAR=(air1 * self.FAR + Wfuel)/(air1)
-        self._setComp() 
-        self._flow.set(T=2660*5/9, P=self.Pt*6894.75729)
-        self._flow.equilibrate('TP')
-        self._flow.set(H=self.ht/0.0004302099943161011, P=self.Pt*6894.75729)
-        self._flow.equilibrate('HP')
-        self.Tt=self._flow.temperature()*9./5.
-        self.s=self._flow.entropy_mass()*0.000238845896627  
-        self.rhot=self._flow.density()*.0624
-        self.gamt=self._flow.cp_mass()/self._flow.cv_mass()
+def burn(variables, data, fuel, Wfuel, hfuel):
+    '''Burn a fuel with this station'''
+    sn = data.station_name
+    flow_1 = variables['%s:W' % sn]
+    variables['%s:W' % sn] = variables['%s:W' % sn] + Wfuel 
+    for i in range(0, len(data._species)):
+        if (fuel - 1) == i:
+            data._species[i] = (flow_1 * data._species[i] + Wfuel) / variables['%s:W' % sn]
+        else:
+            data._species[i] = (flow_1 * data._species[i]) / variables['%s:W' % sn]
+    variables['%s:ht' % sn] = (flow_1 * variables['%s:ht' % sn] + Wfuel * hfuel)/ variables['%s:W' % sn]
+    air1 = flow_1 * (1.0 / (1.0 + variables['%s:FAR' % sn] + variables['%s:WAR' % sn]))
+    variables['%s:FAR' % sn] = (air1 * variables['%s:FAR' % sn] + Wfuel) / air1
+    _setComp(data)
+    data._flow.set(T=2660 * 5 / 9, P=variables['%s:Pt' % sn] * 6894.75729)
+    data._flow.equilibrate('TP')
+    data._flow.set(H=variables['%s:ht' % sn] / 0.0004302099943161011, P=variables['%s:Pt' % sn] * 6894.75729)
+    data._flow.equilibrate('HP')
+    variables['%s:Tt' % sn] = data._flow.temperature() * 9.0 / 5.0
+    variables['%s:s' % sn] = data._flow.entropy_mass() * 0.000238845896627
+    variables['%s:rhot' % sn] = data._flow.density() * 0.0624
+    variables['%s:gamt' % sn] = data._flow.cp_mass() / data._flow.cv_mass()
 
-    #set the statics based on Mach
-    def setStaticMach(self):
-        mach_target = self.Mach
-        def f(Ps):
-            self.Ps=Ps
-            self.setStaticPs()
-            return self.Mach - mach_target
-
-        Ps_guess = self.Pt*(1 + (self.gamt-1)/2*mach_target**2)**(self.gamt/(1-self.gamt))*.9
-        secant(f, Ps_guess, x_min=0, x_max=self.Pt)
+def setStaticMach(variables, data):
+    '''Set the statics based on Mach'''
+    sn = data.station_name
+    mach_target = variables['%s:Mach' % sn]
+    def f(Ps):
+        variables['%s:Ps' % sn] = Ps
+        setStaticPs(variables, data)
+        return variables['%s:Mach' % sn] - mach_target
+    Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2 * mach_target ** 2) ** (variables['%s:gamt' % sn] / (1 - variables['%s:gamt' % sn])) * 0.9
+    _secant(f, Ps_guess, x_min=0, x_max=variables['%s:Pt' % sn])
 
 
-    #set the statics based on pressure
-    def setStaticPs(self):
+def setStaticPs(variables, data):
+    '''Set the statics based on pressure'''
+    sn = data.station_name
+    def f(Ts):
+        _setComp(data)
+        data._flow.set(T=Ts * 5.0 / 9.0, P=data.Ps * 6894.75729) # 6894.75729 Pa/psi
+        data._flow.equilibrate('TP')
+        return variables['%s:s' % sn] - data._flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
+    _secant(f, variables['%s:Ts' % sn], x_min=200, x_max=5000, maxdx=5000)
+    variables['%s:Ts' % sn] = data._flow.temperature() * 9.0 / 5.0
+    variables['%s:rhos' % sn] = data._flow.density() * 0.0624
+    variables['%s:gams' % sn] = data._flow.cp_mass() / data._flow.cv_mass()
+    variables['%s:hs' % sn] = data._flow.enthalpy_mass() * 0.0004302099943161011
+    variables['%s:Vflow' % sn] = (778.169 * 32.1740 * 2 * (variables['%s:ht' % sn] - variables['%s:hs' % sn])) ** 0.5
+    variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data._flow.temperature() / data._flow.meanMolecularWeight()) * 3.28084
+    variables['%s:Mach' % sn] = variables['%s:Vflow' % sn] / variables['%s:Vsonic' % sn]
+    variables['%s:area' % sn] = variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0
 
-        def f(Ts): 
-            self._setComp()                   
-            self._flow.set(T=Ts*5./9., P=self.Ps*6894.75729 )
-            self._flow.equilibrate('TP') 
-            return self.s  - self._flow.entropy_mass()*0.000238845896627
-  
-        secant(f, self.Ts, x_min=200,x_max =  5000,maxdx = 5000 )   
-        
-        self.Ts=self._flow.temperature()*9./5.
-        self.rhos=self._flow.density()*.0624
-        self.gams=self._flow.cp_mass()/self._flow.cv_mass() 
-        self.hs=self._flow.enthalpy_mass()*0.0004302099943161011 
-        self.Vflow=(778.169*32.1740*2*(self.ht-self.hs))**.5
-        self.Vsonic=math.sqrt(self.gams*GasConstant*self._flow.temperature()/self._flow.meanMolecularWeight())*3.28084
-        self.Mach=self.Vflow / self.Vsonic
-        self.area= self.W / (self.rhos*self.Vflow)*144. 
+def setStaticArea(variables, data):
+    sn = data.station_name
+    target_area = variables['%s:area' % sn]
+    Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2) ** (variables['%s:gamt' % sn] / ( 1 - variables['%s:gamt' % sn])) # at mach 1
+    def f(Ps):
+        variables['%s:Ps' % sn] = Ps
+        setStaticPs(variables, data)
+        return 1 - variables['%s:Mach' % sn]
+    Ps_M1 = _secant(f, Ps_guess, x_min=0, x_max=variables['%s:Pt' % sn])
+    # find the subsonic solution first
+    guess = (variables['%s:Pt' % sn] + Ps_M1) / 2
+    def f(Ps):
+        variables['%s:Ps' % sn] = Ps
+        setStaticPs(variables, data)
+        return variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0 - target_area
+    _secant(f, guess, x_min=Ps_M1, x_max=variables['%s:Pt' % sn])
+    # if you want the supersonic one, just keep going with a little lower initial guess    
+    if variables['%s:is_super' % sn]:
+        # jsg: wild guess of 1/M_subsonic
+        mach_guess = 1 / variables['%s:Mach' % sn]
+        Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2 * mach_guess ** 2) ** (variables['%s:gamt' % sn] / (1 - variables['%s:gamt' % sn]))
+        _secant(f, Ps_guess, x_min=0, x_max=Ps_M1)
 
-    def setStaticArea(self): 
-        target_area = self.area
-        Ps_guess=self.Pt*(1 + (self.gamt-1)/2)**(self.gamt/(1-self.gamt)) #at mach 1
-        def f(Ps):
-            self.Ps = Ps
-            self.setStaticPs()
-            return 1-self.Mach
-        
-        Ps_M1 = secant(f,Ps_guess,x_min=0,x_max=self.Pt)
+def setStatic(variables, data):
+    '''Determine which static calc to use'''
+    sn = data.station_name
+    if (variables['%s:Tt' % sn] and variables['%s:Pt' % sn]): # if non zero
+        variables['%s:Wc' % sn] = variables['%s:W' % sn] * (variables['%s:Tt' % sn] / 518.67) ** 0.5 / (variables['%s:Pt' % sn] / 14.696)
+    if data._mach_or_area == 0:
+        variables['%s:Ps' % sn]    = variables['%s:Pt' % sn]
+        variables['%s:Ts' % sn]    = variables['%s:Tt' % sn]
+        variables['%s:rhos' % sn]  = variables['%s:rhot' % sn]
+        variables['%s:gams' % sn]  = variables['%s:gamt' % sn]
+        variables['%s:hs' % sn]    = variables['%s:ht' % sn]
+        variables['%s:Vflow' % sn] = 0
+        variables['%s:Mach' % sn]  = 0
+    elif data._mach_or_area == 1:
+        setStaticMach(variables, data)
+    elif data._mach_or_area == 2:
+        setStaticArea(variables, data)
+    elif data._mach_or_area == 3:
+        setStaticPs(variables, data)
 
-        #find the subsonic solution first
-        guess = (self.Pt+Ps_M1)/2
-        def f(Ps):
-            self.Ps = Ps
-            self.setStaticPs()
-            return self.W/(self.rhos*self.Vflow)*144.-target_area
-        secant(f,  guess, x_min=Ps_M1, x_max=self.Pt)
+def setStaticTsPsMN(variables, data, Ts, Ps, MN): 
+    '''Set the statics based on Ts, Ps, and MN'''
+    # UPDGRADED TO USE LOOPS
+    sn = data.station_name
+    data._trigger = 1
+    # do this twice beacause gamt changes
+    for n in range(2):
+        variables['%s:Tt' % sn] = variables['%s:Ts' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2.0 * MN ** 2)
+        variables['%s:Pt' % sn] = Ps * (1 + (variables['%s:gamt' % sn] - 1) / 2.0 * MN ** 2) ** (variables['%s:gamt' % sn] / (variables['%s:gamt' % sn] - 1))
+        setTotalTP(variables, data, self.Tt, self.Pt)
+    data._trigger = 1
+    variables['%s:Mach' % sn] = MN
+    setStaticMach(variables, data)
+    variables['%s:area' % sn] = variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0
+    data._trigger = 0
 
-        #if you want the supersonic one, just keep going with a little lower initial guess    
-        if self.sub_or_super == "super":
-            #jsg: wild guess of 1/M_subsonic
-            mach_guess = 1/self.Mach
-            Ps_guess=self.Pt*(1 + (self.gamt-1)/2*mach_guess**2)**(self.gamt/(1-self.gamt))
-            secant(f, Ps_guess, x_min=0, x_max=Ps_M1)
+reactants = []
+reactantNames = [[0 for x in xrange(6)] for x in xrange(6)]
+reactantSplits =[[0 for x in xrange(6)] for x in xrange(6)]
+num_reactants = 0
+# add a reactant that can be mixed in
+def add_reactant(reactants, splits):
+    reactantNames[num_reactants][0] = reactants[0]
+    reactantNames[num_reactants][1] = reactants[1]
+    reactantNames[num_reactants][2] = reactants[2]
+    reactantNames[num_reactants][3] = reactants[3]
+    reactantNames[num_reactants][4] = reactants[4]
+    reactantNames[num_reactants][5] = reactants[5]
 
-    #determine which static calc to use
-    def setStatic(self):
-        if (self.Tt and self.Pt): # if non zero
-            self.Wc = self.W*(self.Tt/518.67)**.5/(self.Pt/14.696)
-
-        if self._mach_or_area == 0:
-            self.Ps = self.Pt 
-            self.Ts = self.Tt
-            self.rhos = self.rhot
-            self.gams = self.gamt
-            self.hs = self.ht 
-            self.Vflow = 0
-            self.Mach = 0
-
-        elif self._mach_or_area == 1:
-            self.setStaticMach()
-
-        elif self._mach_or_area ==2:
-            self.setStaticArea()
-            
-        elif self._mach_or_area == 3:
-            self.setStaticPs()
-
-    #set the statics based on Ts, Ps, and MN
-    #UPDGRAEDE TO USE LOOPS
-    def setStaticTsPsMN(self, Ts, Ps, MN): 
-        self._trigger=1 
-
-        self.Tt=Ts*(1+(self.gamt - 1) /2.* MN**2)
-        self.Pt=Ps*(1+(self.gamt - 1) /2.* MN**2)**(self.gamt /(self.gamt -1))
-        self.setTotalTP(self.Tt, self.Pt)
-
-        #do this once more beacause gamt changed... very crude iteration
-        self.Tt=Ts*(1+(self.gamt - 1) /2.* MN**2)
-        self.Pt=Ps*(1+(self.gamt - 1) /2.* MN**2)**(self.gamt /(self.gamt -1))
-        self.setTotalTP(self.Tt, self.Pt)
-
-        self._trigger=1
-        self.Mach=MN 
-        self.setStaticMach()
-        self.area= self.W / (self.rhos * self.Vflow)*144. 
-        self._trigger=0
-
-
-#For right now, all FlowStations are Air/Fuel FlowStations
-FlowStation.add_reactant( ['N2', 'O2', 'AR', 'CO2', '', ''],[.755184, .231416, .012916, 0.000485, 0., 0. ] )
-FlowStation.add_reactant( ['H2O', '', '', '', '', ''], [1., 0., 0., 0., 0., 0. ] )    
-FlowStation.add_reactant( ['CH2', 'CH', '', '', '', ''], [.922189, 0.07781, 0., 0., 0., 0. ] )           
-FlowStation.add_reactant( ['C', 'H', '', '', '', ''], [.86144,.13856, 0., 0., 0., 0. ] )   
-FlowStation.add_reactant( ['Jet-A(g)', '', '', '', '', ''], [1., 0., 0., 0., 0., 0. ] )   
-FlowStation.add_reactant( ['H2', '', '', '', '', ''], [1., 0., 0., 0., 0., 0. ] )  
-
-#variable class used in components
-class FlowStationVar(VarTree): 
-   def __init__(self,*args,**metadata): 
-        super(FlowStationVar,self).__init__(FlowStation(), *args, **metadata)
+    reactantSplits[num_reactants][0] = splits[0]
+    reactantSplits[num_reactants][1] = splits[1]
+    reactantSplits[num_reactants][2] = splits[2]
+    reactantSplits[num_reactants][3] = splits[3]
+    reactantSplits[num_reactants][4] = splits[4]
+    reactantSplits[num_reactants][5] = splits[5]
+    num_reactants += 1
+# For right now, all FlowStations are Air/Fuel FlowStations
+add_reactant(['N2', 'O2', 'AR', 'CO2', '', ''], [0.755184, 0.231416, 0.012916, 0.000485, 0.0, 0.0])
+add_reactant(['H2O', '', '', '', '', ''], [1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+add_reactant(['CH2', 'CH', '', '', '', ''], [0.922189, 0.07781, 0.0, 0.0, 0.0, 0.0])
+add_reactant(['C', 'H', '', '', '', ''], [0.86144, 0.13856, 0.0, 0.0, 0.0, 0.0])
+add_reactant(['Jet-A(g)', '', '', '', '', ''], [1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+add_reactant(['H2', '', '', '', '', ''], [1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
