@@ -9,6 +9,7 @@ class Compressor(CycleComponent):
     '''Axial Compressor performance calculations''' 
 
     def __init__(self):
+        super(Compressor, self).__init__()
         self.add_param('PR_des', 12.47, desc='Pressure ratio at design conditions')
         self.add_param('MNexit_des', 0.4, desc='mach number at the compressor exit at design conditions')
         self.add_param('eff_des', 0.95, desc='adiabatic efficiency at the design condition')
@@ -31,6 +32,7 @@ class Compressor(CycleComponent):
         return norm_PR*self.PR_des
 
     def solve_nonlinear(self, params, unknowns, resids):
+        super(Compressor, self).solve_nonlinear(self, params, unknowns, resids)
         fs_ideal_data = flowstation.init_flowstation(self.add_output, 'fs_ideal')
         unknowns['Fl_O:W'] = params['Fl_I:W']
         if self.run_design: 
