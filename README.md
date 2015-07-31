@@ -2,7 +2,7 @@ This plugin provides basic thermodynamic cycle modeling tools for OpenMDAO. It's
 
 ### Differences from Justin's Code
 
-This fork aims to update the plugin to comply with OpenMDAO 1.0 Alpha.
+This fork aims to update the plugin to comply with OpenMDAO 1.0 Alpha. As the openmdao.main.api.VariableTree class has been discontinued, flow_station.py will be restructured as a collection of helper functions (rather than classes) for generating and managing FlowStation trees for components.
 
 # Pre-Reqs
 
