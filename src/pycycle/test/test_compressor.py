@@ -1,36 +1,50 @@
-
 import unittest
 
-from openmdao.main.api import set_as_top
-from openmdao.util.testutil import assert_rel_error
+from openmdao.core.problem import Problem
 
-from pycycle.api import Compressor, FlowStation
+from pycycle.api import Compressor
+from test_util import assert_rel_error
+import pycycle.flowstation
 
 class CompressorTestCase(unittest.TestCase):
 
     def setUp(self): 
-        self.comp = set_as_top(Compressor())
+        self.comp = Compressor()
 
-        self.fs = FlowStation()
-        self.fs.W = 1.08
-        self.fs.setTotalTP(630.74523, 0.0271945)
-        self.fs.Mach = .6
-
-    def tearDown(self): 
+    def tearDown(self):
         comp = None
 
-    def test_compressor(self): 
+    def test_compressor(self):
         comp = self.comp
 
-        comp.PR_des = 12.47
-        comp.MNexit_des = .4
-        comp.eff_des = .80
-        comp.Fl_I = self.fs
-        comp.design = True
+        comp.params['PR_des'] = 12.47
+        comp.params['MNexit_des'] = 0.4
+        comp.params['eff_des'] = 0.8
+        self.comp.params['Fl_I:W'] = 1.08
+        flowstation.setTotalTP(self.comp.params, self.comp.Fl_I_data, 630.74523, 0.0271945)
+        self.comp.params['Fl_I:Mach'] = 0.6
+        comp.params['design'] = True
 
-        comp.run()
+        p = Problem(root=comp)
+        p.setup()
+        p.run()
 
-        TOL = .001
+        TOL = 0.001
+        assert_rel_error(self,comp.Fl_O.W, 1.08, TOL)
+        assert_rel_error(self,comp.Fl_O.Pt, 0.33899, TOL)
+        assert_rel_error(self,comp.Fl_O.Tt, 1424.01, TOL)
+        assert_rel_error(self,comp.Fl_O.rhos, 0.000594, TOL)
+        assert_rel_error(self,comp.Fl_O.Mach, 0.4 ,TOL)
+        assert_rel_error(self,comp.Fl_O.area, 364.7, TOL)
+        assert_rel_error(self,comp.pwr, 303.2, TOL)
+        assert_rel_error(self,comp.eff_poly, 0.8545, TOL)
+
+        # run off design
+        p = Problem(root=comp)
+        p.setup()
+        p.run()
+
+        # values should remain unchanged in off-design at design condition
         assert_rel_error(self,comp.Fl_O.W, 1.08,TOL)
         assert_rel_error(self,comp.Fl_O.Pt, .33899, TOL)
         assert_rel_error(self,comp.Fl_O.Tt, 1424.01, TOL)
@@ -40,27 +54,12 @@ class CompressorTestCase(unittest.TestCase):
         assert_rel_error(self,comp.pwr, 303.2, TOL)
         assert_rel_error(self,comp.eff_poly, .8545, TOL)
 
-        #run off design
-        comp.run()
-
-        #values should remain unchanged in off-design at design condition
-        assert_rel_error(self,comp.Fl_O.W, 1.08,TOL)
-        assert_rel_error(self,comp.Fl_O.Pt, .33899, TOL)
-        assert_rel_error(self,comp.Fl_O.Tt, 1424.01, TOL)
-        assert_rel_error(self,comp.Fl_O.rhos, .000594, TOL)
-        assert_rel_error(self,comp.Fl_O.Mach, .4 ,TOL)
-        assert_rel_error(self,comp.Fl_O.area, 364.7, TOL)
-        assert_rel_error(self,comp.pwr, 303.2, TOL)
-        assert_rel_error(self,comp.eff_poly, .8545, TOL)
-
-        #try changing something
-        self.fs.W *= 1.1
-        comp.Fl_I = self.fs
-        comp.run()
+        # try changing something
+        comp.params['Fl_I:W'] *= 1.1
+        p = Problem(root=comp)
+        p.setup()
+        p.run()
         assert_rel_error(self, comp.PR, 13.52995, TOL)
 
-
-        
 if __name__ == "__main__":
     unittest.main()
-    
