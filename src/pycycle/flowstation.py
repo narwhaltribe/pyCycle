@@ -122,7 +122,7 @@ def _setComp(data):
     compname = ['', '', '', '', '', '', '', '', '', '', '', '']
     fract = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     numcurrent = 0
-    for cName in range (0, num_reactants):
+    for cName in range (0, _num_reactants[0]):
         for cSpecies in range(0, 6):
             if reactantSplits[cName][cSpecies] * data._species[cName] > 0.00001:
                fract[numcurrent] = reactantSplits[cName][cSpecies] * data._species[cName]
