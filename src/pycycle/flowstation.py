@@ -377,25 +377,25 @@ def setStaticTsPsMN(variables, data, Ts, Ps, MN):
     data._trigger = 0
 
 reactants = []
-reactantNames = [[0 for x in xrange(6)] for x in xrange(6)]
-reactantSplits =[[0 for x in xrange(6)] for x in xrange(6)]
-num_reactants = 0
+reactant_names = [[0 for x in xrange(6)] for x in xrange(6)]
+reactant_splits =[[0 for x in xrange(6)] for x in xrange(6)]
+_num_reactants = [0] # store counter in list to hack around variable scope issue
 # add a reactant that can be mixed in
 def add_reactant(reactants, splits):
-    reactantNames[num_reactants][0] = reactants[0]
-    reactantNames[num_reactants][1] = reactants[1]
-    reactantNames[num_reactants][2] = reactants[2]
-    reactantNames[num_reactants][3] = reactants[3]
-    reactantNames[num_reactants][4] = reactants[4]
-    reactantNames[num_reactants][5] = reactants[5]
+    reactant_names[_num_reactants[0]][0] = reactants[0]
+    reactant_names[_num_reactants[0]][1] = reactants[1]
+    reactant_names[_num_reactants[0]][2] = reactants[2]
+    reactant_names[_num_reactants[0]][3] = reactants[3]
+    reactant_names[_num_reactants[0]][4] = reactants[4]
+    reactant_names[_num_reactants[0]][5] = reactants[5]
 
-    reactantSplits[num_reactants][0] = splits[0]
-    reactantSplits[num_reactants][1] = splits[1]
-    reactantSplits[num_reactants][2] = splits[2]
-    reactantSplits[num_reactants][3] = splits[3]
-    reactantSplits[num_reactants][4] = splits[4]
-    reactantSplits[num_reactants][5] = splits[5]
-    num_reactants += 1
+    reactant_splits[_num_reactants[0]][0] = splits[0]
+    reactant_splits[_num_reactants[0]][1] = splits[1]
+    reactant_splits[_num_reactants[0]][2] = splits[2]
+    reactant_splits[_num_reactants[0]][3] = splits[3]
+    reactant_splits[_num_reactants[0]][4] = splits[4]
+    reactant_splits[_num_reactants[0]][5] = splits[5]
+    _num_reactants[0] += 1
 # For right now, all FlowStations are Air/Fuel FlowStations
 add_reactant(['N2', 'O2', 'AR', 'CO2', '', ''], [0.755184, 0.231416, 0.012916, 0.000485, 0.0, 0.0])
 add_reactant(['H2O', '', '', '', '', ''], [1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
