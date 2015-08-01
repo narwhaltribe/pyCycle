@@ -235,7 +235,7 @@ def add(variables, data, variables2, data2):
     vars1['%s:FAR' % sn1] = (air1 * vars1['%s:FAR' % sn1] + air2 * vars2['%s:FAR' % sn2]) / (air1 + air2)
     vars1['%s:WAR' % sn1] = (air1 * vars1['%s:WAR' % sn1] + air2 * vars2['%s:WAR' % sn2]) / (air1 + air2)
     vars1['%s:ht' % sn1] = (vars1['%s:W' % sn1] * vars1['%s:ht' % sn1] + vars2['%s:W' % sn2] * vars2['%s:ht' % sn2]) / (vars1['%s:W' % sn1] + vars2['%s:W' % sn2])
-    vars1['%s:W' % sn1] = vars1['%s:W' % sn1] + vars2['%s:W' % sn2])
+    vars1['%s:W' % sn1] = vars1['%s:W' % sn1] + vars2['%s:W' % sn2]
     data._flow.set(T=vars1['%s:Tt' % sn1] * 5.0 / 9.0, P=vars1['%s:Pt' % sn1] * 6894.75729)
     data._flow.equilibrate('TP')
     data._flow.set(H=vars1['%s:ht' % sn1] / 0.0004302099943161011, P=vars1['%s:Pt' % sn1] * 6894.75729)
