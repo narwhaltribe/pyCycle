@@ -16,7 +16,7 @@ class FlowStationData:
         self._trigger        = _trigger
         self._mach_or_area   = _mach_or_area
 
-def _secant(func, x0, TOL=1e-7, x_min=1e15, x_max=1e15, maxdx=1e15 ):
+def _secant(func, x0, TOL=1e-7, x_min=1e15, x_max=1e15, maxdx=1e15):
     '''Secant solver with a limit on overall step size'''
     if x0 >= 0:
         x1 = x0 * (1 + 1e-2) + 1e-2
@@ -30,8 +30,9 @@ def _secant(func, x0, TOL=1e-7, x_min=1e15, x_max=1e15, maxdx=1e15 ):
     count = 0
     while True:
         if abs(dx) < TOL * (1 + abs(x0)):
-            return x0 -dx
+            return x0 - dx
         dx = f * (x0 - x1) / float(f - f1)
+        print dx
         df = abs((f1 - f) / (f + 1e-10))
         if abs(dx) > maxdx:
             dx = maxdx * dx / abs(dx)
@@ -43,9 +44,10 @@ def _secant(func, x0, TOL=1e-7, x_min=1e15, x_max=1e15, maxdx=1e15 ):
             x1, x0 = x0, x0 - dx
         f1, f = f, func(x0)
         count += 1
+        print x0
 
-def init_flowstation(add_var, station_name):
-    '''Adds FlowStation variables to a component's parameters and returns '''
+def init_fs_tree(add_var, station_name):
+    '''Adds FlowStation variables to a data structure (e.g. a component's parameters or unknowns) and returns an object containing additional data.'''
     def add_all(all_vars):
         for var_name, args in all_vars.iteritems():
             default_value, desc, units = args[0], args[1], args[2]
@@ -86,6 +88,14 @@ def init_flowstation(add_var, station_name):
     _mach_or_area = 0
     return FlowStationData(station_name, _flow, _species, reactant_names, reactant_splits, num_reactants, _trigger, _mach_or_area)
 
+def init_fs_standalone(variables={}, station_name=''):
+    '''Returns a tuple containing a dictionary of FlowStation variables and an object containing additional data.'''
+    variables = {}
+    def add_var(name, default_value, *args, **kwargs):
+        variables[name] = default_value
+    fs_data = init_fs_tree(add_var, '')
+    return (variables, fs_data)
+
 def _W_changed(variables, data): 
     '''Trigger action on weight flow'''
     if data._trigger == 0:
@@ -124,9 +134,9 @@ def _setComp(data):
     numcurrent = 0
     for cName in range (0, _num_reactants[0]):
         for cSpecies in range(0, 6):
-            if reactantSplits[cName][cSpecies] * data._species[cName] > 0.00001:
-               fract[numcurrent] = reactantSplits[cName][cSpecies] * data._species[cName]
-               compname[numcurrent] = reactantNames[cName][cSpecies]
+            if reactant_splits[cName][cSpecies] * data._species[cName] > 0.00001:
+               fract[numcurrent] = reactant_splits[cName][cSpecies] * data._species[cName]
+               compname[numcurrent] = reactant_names[cName][cSpecies]
                numcurrent += 1
     count1 = numcurrent - 1
     while count1 > -1:
@@ -204,9 +214,10 @@ def setTotal_hP(variables, data, hin, Pin):
     variables['%s:Pt' % sn] = Pin
     def f(Tt):
         data._flow.set(T=Tt * 5.0 / 9.0, P=Pin * 6894.75729)
+        print 
         data._flow.equilibrate('TP')
         return hin - data._flow.enthalpy_mass() * 0.0004302099943161011
-    _secant(f, variables['%s:Tt' %sn], x_min=0)
+    _secant(f, variables['%s:Tt' % sn], x_min=0)
     _total_calcs(variables, data)
 
 

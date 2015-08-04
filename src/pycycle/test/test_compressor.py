@@ -1,10 +1,11 @@
 import unittest
 
 from openmdao.core.problem import Problem
+from openmdao.core.group import Group
 
 from pycycle.api import Compressor
 from test_util import assert_rel_error
-import pycycle.flowstation
+from pycycle import flowstation
 
 class CompressorTestCase(unittest.TestCase):
 
@@ -16,6 +17,10 @@ class CompressorTestCase(unittest.TestCase):
 
     def test_compressor(self):
         comp = self.comp
+        g = Group()
+        g.add('comp', comp)
+        p = Problem(root=g)
+        p.setup()
 
         comp.params['PR_des'] = 12.47
         comp.params['MNexit_des'] = 0.4
@@ -25,8 +30,6 @@ class CompressorTestCase(unittest.TestCase):
         self.comp.params['Fl_I:Mach'] = 0.6
         comp.params['design'] = True
 
-        p = Problem(root=comp)
-        p.setup()
         p.run()
 
         TOL = 0.001
@@ -40,8 +43,7 @@ class CompressorTestCase(unittest.TestCase):
         assert_rel_error(self,comp.eff_poly, 0.8545, TOL)
 
         # run off design
-        p = Problem(root=comp)
-        p.setup()
+        comp.params['design'] = False
         p.run()
 
         # values should remain unchanged in off-design at design condition

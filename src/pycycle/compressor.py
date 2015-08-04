@@ -2,7 +2,7 @@ import math
 
 from openmdao.core.component import Component
 
-import pycycle.flowstation
+from pycycle import flowstation
 from pycycle.cycle_component import CycleComponent
 
 class Compressor(CycleComponent): 
@@ -15,12 +15,12 @@ class Compressor(CycleComponent):
         self.add_param('eff_des', 0.95, desc='adiabatic efficiency at the design condition')
         self.add_param('hub_to_tip', 0.4, desc='ratio of hub radius to tip radius')
         self.add_param('op_slope', 0.85, desc='slope of operating line (pressure/efficiency)') # TODO add description
-        self.Fl_I_data = flowstation.init_flowstation(self.add_param, 'Fl_I') # incoming air stream to compressor
+        self.Fl_I_data = flowstation.init_fs_tree(self.add_param, 'Fl_I') # incoming air stream to compressor
         self.add_output('PR', 0.0, desc='pressure ratio at operating conditions')
         self.add_output('eff', 0.0, desc='adiabatic efficiency at the operating condition')
         self.add_output('eff_poly', 0.0, desc='polytropic efficiency at the operating condition')
         self.add_output('pwr', 0.0, units='hp', desc='power required to run the compressor at the operating condition')
-        self.Fl_O_data = flowstation.init_flowstation(self.add_output, 'Fl_O') # outgoing air stream from compressor
+        self.Fl_O_data = flowstation.init_fs_tree(self.add_output, 'Fl_O') # outgoing air stream from compressor
         self.add_output('tip_radius', 0.0, units='inch', desc='radius at the tip of the compressor')
         self.add_output('hub_radius', 0.0, units='inch', desc='radius at the tip of the compressor')
 
@@ -32,28 +32,29 @@ class Compressor(CycleComponent):
         return norm_PR*self.PR_des
 
     def solve_nonlinear(self, params, unknowns, resids):
-        super(Compressor, self).solve_nonlinear(self, params, unknowns, resids)
-        fs_ideal_data = flowstation.init_flowstation(self.add_output, 'fs_ideal')
+        fs_ideal = flowstation.init_fs_standalone()
         unknowns['Fl_O:W'] = params['Fl_I:W']
-        if self.run_design: 
+        if self.params['design']:
             # Design Calculations
             Pt_out = params['Fl_I:Pt'] * params['PR_des']
             unknowns['PR'] = params['PR_des']
-            flowstation.setTotalSP(unknowns, fs_ideal_data, params['Fl_I:s'], Pt_out)
-            ht_out = (fs_ideal.ht - params['Fl_I:ht']) / params['eff_des'] + params['Fl_I:ht']
-            flowstation.setTotal_hP(unknowns, Fl_O_data, ht_out, Pt_out)
+            flowstation.setTotalSP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out)
+            ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / params['eff_des'] + params['Fl_I:ht']
+            print ht_out
+            print Pt_out
+            flowstation.setTotal_hP(unknowns, self.Fl_O_data, ht_out, Pt_out)
             unknowns['Fl_O:Mach'] = params['MNexit_des']
             self._exit_area_des = unknowns['Fl_O:area']
             self._Wc_des = params['Fl_I:Wc']
         else: 
             # Assumed Op Line Calculation
-            unknowns['PR'] = self._op_line(params['Fl_I:Wc'])
+            unknowns['PR'] = self._op_line(params, params['Fl_I:Wc'])
             unknowns['eff'] = parameters['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = params['Fl_I:Pt'] * unknowns['PR']
-            flowstation.setTotalSP(unknowns, fs_ideal_data, params['Fl_I:s'], Pt_out)
-            ht_out = (unknowns['fs_ideal:ht'] - params['Fl_I:ht']) / unknowns['eff'] + params['Fl_I:ht']
-            flowstation.setTotal_hP(unknowns, Fl_O_data, ht_out, Pt_out)
+            flowstation.setTotalSP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out)
+            ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / unknowns['eff'] + params['Fl_I:ht']
+            flowstation.setTotal_hP(unknowns, self.Fl_O_data, ht_out, Pt_out)
             unknowns['Fl_O:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
         C = GAS_CONSTANT * math.log(unknowns['PR'])
         delta_s = unknowns['Fl_O:s'] - params['Fl_I:s']
@@ -64,7 +65,10 @@ class Compressor(CycleComponent):
 
 if __name__ == '__main__': 
     from openmdao.core.problem import Problem
+    from openmdao.core.group import Group
     
-    p = Problem(root=Compressor())
+    g = Group()
+    g.add('comp', Compressor())
+    p = Problem(root=g)
     p.setup()
     p.run()
