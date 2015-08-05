@@ -4,7 +4,7 @@ from Cantera import *
 import pycycle
 
 GAS_CONSTANT = 0.0685592 # BTU/lbm-R
-TARGET_NONE, TARGET_Mach, TARGET_area, TARGET_Ps = 0, 1, 2, 3
+TARGET_NONE, TARGET_Mach, TARGET_area, TARGET_Ps = 0, 1, 2, 3 # in general, target whichever variable was changed last
 
 REACTANT_NAMES = []
 REACTANT_SPLITS =[]
