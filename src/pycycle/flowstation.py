@@ -23,13 +23,10 @@ add_reactant(['Jet-A(g)'], [1.0])
 add_reactant(['H2'], [1.0])
 
 class FlowStationData:
-    def __init__(self, station_name, flow, species, reactant_names, reactant_splits, target_var):
+    def __init__(self, station_name, flow, species):
         self.station_name    = station_name
         self.flow            = flow
         self.species         = species
-        self.reactant_names  = reactant_names
-        self.reactant_splits = reactant_splits
-        self.target_var    = target_var
 
 def _secant(f, x0, tol=1e-7, x_min=1e15, x_max=1e15, max_dx=1e15):
     '''Secant solver with a limit on overall step size'''
@@ -91,10 +88,8 @@ def init_fs_tree(add_var, station_name):
     prop_file = join(directory, 'gri1000.cti')
     flow = importPhase(prop_file)
     species = [1.0, 0, 0, 0, 0, 0, 0, 0]
-    reactant_names = [['' for x in xrange(6)] for x in xrange(6)]
-    reactant_splits = [[0 for x in xrange(6)] for x in xrange(6)]
     target_var = 0
-    return FlowStationData(station_name, flow, species, reactant_names, reactant_splits, target_var)
+    return FlowStationData(station_name, flow, species, target_var)
 
 def init_fs_standalone(variables={}, station_name=''):
     '''Returns a tuple containing a dictionary of FlowStation variables and an object containing additional data.'''
