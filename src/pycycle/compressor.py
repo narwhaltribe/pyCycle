@@ -29,7 +29,7 @@ class Compressor(CycleComponent):
         b = 1 - params['op_slope'] # scaled PR and Wc at design are both 1
         # assume a linear op line, with given slope
         norm_PR = params['op_slope'] * (Wc / self._Wc_des) + b 
-        return norm_PR*self.PR_des
+        return norm_PR * params['PR_des']
 
     def solve_nonlinear(self, params, unknowns, resids):
         fs_ideal = flowstation.init_fs_standalone()
@@ -49,13 +49,14 @@ class Compressor(CycleComponent):
         else:
             # Assumed Op Line Calculation
             unknowns['PR'] = self._op_line(params, params['Fl_I:Wc'])
-            unknowns['eff'] = parameters['eff_des'] # TODO: add in eff variation with W
+            unknowns['eff'] = params['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = params['Fl_I:Pt'] * unknowns['PR']
             flowstation.set_total_sP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out, flowstation.SET_BY_NONE)
             ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / unknowns['eff'] + params['Fl_I:ht']
             flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
             unknowns['Fl_O:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
+            flowstation.set_static(unknowns, self.Fl_O_data, flowstation.SET_BY_area)
         C = flowstation.GAS_CONSTANT * math.log(unknowns['PR'])
         delta_s = unknowns['Fl_O:s'] - params['Fl_I:s']
         unknowns['eff_poly'] = C / (C + delta_s)

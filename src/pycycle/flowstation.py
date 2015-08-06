@@ -269,7 +269,7 @@ def set_static_area(variables, data):
     guess = (variables['%s:Pt' % sn] + Ps_M1) / 2
     def f(Ps):
         variables['%s:Ps' % sn] = Ps
-        set_static_ps(variables, data)
+        set_static_Ps(variables, data)
         return variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0 - target_area
     newton(f, guess)
     # if you want the supersonic one, just keep going with a little lower initial guess    
