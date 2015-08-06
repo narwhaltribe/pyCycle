@@ -131,7 +131,7 @@ def set_reactant(data, i):
     data.species = [0 for x in range(len(REACTANT_NAMES))]
     data.species[i - 1] = 1
               
-def set_WAR(variables, data, WAR, set_by):
+def set_WAR(variables, data, WAR, set_statics_by):
     '''Set the compositon to air with water'''
     sn = data.station_name
     variables['%s:WAR' % sn] = WAR
@@ -139,9 +139,9 @@ def set_WAR(variables, data, WAR, set_by):
     data.species[0] = 1 / (1 + WAR)
     data.species[1] = WAR / (1 + WAR)
     _set_comp(data.species, data.flow)
-    set_static(variables, data, set_by)
+    set_static(variables, data, set_statics_by)
         
-def _total_calcs(variables, data, set_by): 
+def _total_calcs(variables, data, set_statics_by):
     sn = data.station_name
     variables['%s:ht' % sn]     = data.flow.enthalpy_mass() * 0.0004302099943161011
     variables['%s:s' % sn]      = data.flow.entropy_mass() * 0.000238845896627
@@ -150,11 +150,11 @@ def _total_calcs(variables, data, set_by):
     variables['%s:Cp' % sn]     = data.flow.cp_mass() * 2.388459e-4
     variables['%s:Cv' % sn]     = data.flow.cv_mass() * 2.388459e-4
     variables['%s:gamt' % sn]   = variables['%s:Cp' % sn] / variables['%s:Cv' % sn]
-    set_static(variables, data, set_by)
+    set_static(variables, data, set_statics_by)
     variables['%s:Wc' % sn]     = variables['%s:W' % sn] * (variables['%s:Tt' % sn] / 518.67) ** 0.5 / (variables['%s:Pt' % sn] / 14.696)
     variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data.flow.temperature() / data.flow.meanMolecularWeight()) * 3.28084
 
-def set_total_TP(variables, data, Tin, Pin, set_by):
+def set_total_TP(variables, data, Tin, Pin, set_statics_by):
     '''Set total conditions based on T an P'''
     sn = data.station_name
     _set_comp(data.species, data.flow)
@@ -162,9 +162,9 @@ def set_total_TP(variables, data, Tin, Pin, set_by):
     variables['%s:Pt' % sn] = Pin
     data.flow.set(T=Tin * 5.0 / 9.0, P=Pin * 6894.75729)
     data.flow.equilibrate('TP')
-    _total_calcs(variables, data, set_by)
+    _total_calcs(variables, data, set_statics_by)
 
-def set_total_hP(variables, data, hin, Pin, set_by):
+def set_total_hP(variables, data, hin, Pin, set_statics_by):
     '''Set total conditions based on h and P'''
     sn = data.station_name
     _set_comp(data.species, data.flow)
@@ -175,10 +175,10 @@ def set_total_hP(variables, data, hin, Pin, set_by):
         data.flow.equilibrate('TP')
         return hin - data._flow.enthalpy_mass() * 0.0004302099943161011
     _secant(f, float(variables['%s:Tt' % sn]), x_min=0) # TODO is it okay to pass variables[...] directly?
-    _total_calcs(variables, data, set_by)
+    _total_calcs(variables, data, set_statics_by)
 
 
-def set_total_sP(variables, data, Sin, Pin, set_by):
+def set_total_sP(variables, data, Sin, Pin, set_statics_by):
     '''Set total condition based on S and P'''
     sn = data.station_name
     _set_comp(data.species, data.flow)
@@ -186,7 +186,7 @@ def set_total_sP(variables, data, Sin, Pin, set_by):
     variables['%s:Pt' % sn] = Pin
     data.flow.set(S=Sin / 0.000238845896627, P=Pin * 6894.75729)
     data.flow.equilibrate('SP', loglevel=1)
-    _total_calcs(variables, data, set_by)
+    _total_calcs(variables, data, set_statics_by)
 
 def add(variables, data, variables2, data2):
     '''Add another station to this one; mix enthalpies and keep pressure and this stations value'''
@@ -263,7 +263,6 @@ def set_static_Mach(variables, data):
         return variables['%s:Mach' % sn] - mach_target
     Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2 * mach_target ** 2) ** (variables['%s:gamt' % sn] / (1 - variables['%s:gamt' % sn])) * 0.9
     _secant(f, Ps_guess, x_min=0, x_max=variables['%s:Pt' % sn])
-
 
 def set_static_Ps(variables, data):
     '''Set the statics based on pressure'''
