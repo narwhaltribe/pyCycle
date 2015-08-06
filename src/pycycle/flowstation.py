@@ -88,8 +88,7 @@ def init_fs_tree(add_var, station_name):
     prop_file = join(directory, 'gri1000.cti')
     flow = importPhase(prop_file)
     species = [1.0, 0, 0, 0, 0, 0, 0, 0]
-    target_var = 0
-    return FlowStationData(station_name, flow, species, target_var)
+    return FlowStationData(station_name, flow, species)
 
 def init_fs_standalone(variables={}, station_name=''):
     '''Returns a tuple containing a dictionary of FlowStation variables and an object containing additional data.'''
@@ -175,18 +174,18 @@ def set_total_hP(variables, data, hin, Pin, target_var):
         data.flow.set(T=Tt * 5.0 / 9.0, P=Pin * 6894.75729)
         data.flow.equilibrate('TP')
         return hin - data._flow.enthalpy_mass() * 0.0004302099943161011
-    _secant(f, variables['%s:Tt' % sn], x_min=0) # TODO is it okay to pass variables[...] directly?
+    _secant(f, float(variables['%s:Tt' % sn]), x_min=0) # TODO is it okay to pass variables[...] directly?
     _total_calcs(variables, data, target_var)
 
 
 def set_total_sP(variables, data, Sin, Pin, target_var):
     '''Set total condition based on S and P'''
     sn = data.station_name
-    setComp(species, flow)
+    _set_comp(data.species, data.flow)
     variables['%s:s' % sn] = Sin
     variables['%s:Pt' % sn] = Pin
-    flow.set(S=Sin / 0.000238845896627, P=Pin * 6894.75729)
-    flow.equilibrate('SP', loglevel=1)
+    data.flow.set(S=Sin / 0.000238845896627, P=Pin * 6894.75729)
+    data.flow.equilibrate('SP', loglevel=1)
     _total_calcs(variables, data, target_var)
 
 def add(variables, data, variables2, data2):
@@ -271,16 +270,16 @@ def set_static_Ps(variables, data):
     sn = data.station_name
     def f(Ts):
         _set_comp(data.species, data.flow)
-        data.flow.set(T=Ts * 5.0 / 9.0, P=data.Ps * 6894.75729) # 6894.75729 Pa/psi
+        data.flow.set(T=Ts * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729) # 6894.75729 Pa/psi
         data.flow.equilibrate('TP')
         return variables['%s:s' % sn] - data.flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
-    _secant(f, variables['%s:Ts' % sn], x_min=200, x_max=5000, maxdx=5000)
-    variables['%s:Ts' % sn] = data._flow.temperature() * 9.0 / 5.0
-    variables['%s:rhos' % sn] = data._flow.density() * 0.0624
-    variables['%s:gams' % sn] = data._flow.cp_mass() / data._flow.cv_mass()
-    variables['%s:hs' % sn] = data._flow.enthalpy_mass() * 0.0004302099943161011
+    _secant(f, variables['%s:Ts' % sn], x_min=200, x_max=5000, max_dx=5000)
+    variables['%s:Ts' % sn] = data.flow.temperature() * 9.0 / 5.0
+    variables['%s:rhos' % sn] = data.flow.density() * 0.0624
+    variables['%s:gams' % sn] = data.flow.cp_mass() / data.flow.cv_mass()
+    variables['%s:hs' % sn] = data.flow.enthalpy_mass() * 0.0004302099943161011
     variables['%s:Vflow' % sn] = (778.169 * 32.1740 * 2 * (variables['%s:ht' % sn] - variables['%s:hs' % sn])) ** 0.5
-    variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data._flow.temperature() / data._flow.meanMolecularWeight()) * 3.28084
+    variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data.flow.temperature() / data.flow.meanMolecularWeight()) * 3.28084
     variables['%s:Mach' % sn] = variables['%s:Vflow' % sn] / variables['%s:Vsonic' % sn]
     variables['%s:area' % sn] = variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0
 

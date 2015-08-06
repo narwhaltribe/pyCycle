@@ -34,27 +34,26 @@ class Compressor(CycleComponent):
     def solve_nonlinear(self, params, unknowns, resids):
         fs_ideal = flowstation.init_fs_standalone()
         unknowns['Fl_O:W'] = params['Fl_I:W']
+        flowstation.set_static(unknowns, self.Fl_O_data, flowstation.TARGET_NONE)
         if self.params['design']:
             # Design Calculations
             Pt_out = params['Fl_I:Pt'] * params['PR_des']
             unknowns['PR'] = params['PR_des']
-            flowstation.setTotalSP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out)
+            flowstation.set_total_sP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out, flowstation.TARGET_NONE)
             ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / params['eff_des'] + params['Fl_I:ht']
-            print ht_out
-            print Pt_out
-            flowstation.setTotal_hP(unknowns, self.Fl_O_data, ht_out, Pt_out)
+            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.TARGET_NONE)
             unknowns['Fl_O:Mach'] = params['MNexit_des']
             self._exit_area_des = unknowns['Fl_O:area']
             self._Wc_des = params['Fl_I:Wc']
-        else: 
+        else:
             # Assumed Op Line Calculation
             unknowns['PR'] = self._op_line(params, params['Fl_I:Wc'])
             unknowns['eff'] = parameters['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = params['Fl_I:Pt'] * unknowns['PR']
-            flowstation.setTotalSP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out)
+            flowstation.set_total_sP(fs_ideal[0], fs_ideal[1], params['Fl_I:s'], Pt_out, flowstation.TARGET_NONE)
             ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / unknowns['eff'] + params['Fl_I:ht']
-            flowstation.setTotal_hP(unknowns, self.Fl_O_data, ht_out, Pt_out)
+            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.TARGET_NONE)
             unknowns['Fl_O:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
         C = GAS_CONSTANT * math.log(unknowns['PR'])
         delta_s = unknowns['Fl_O:s'] - params['Fl_I:s']

@@ -26,8 +26,10 @@ class CompressorTestCase(unittest.TestCase):
         comp.params['MNexit_des'] = 0.4
         comp.params['eff_des'] = 0.8
         self.comp.params['Fl_I:W'] = 1.08
-        flowstation.setTotalTP(self.comp.params, self.comp.Fl_I_data, 630.74523, 0.0271945)
+        flowstation.set_static(comp.params, comp.Fl_I_data, flowstation.TARGET_NONE)
+        flowstation.set_total_TP(self.comp.params, self.comp.Fl_I_data, 630.74523, 0.0271945, flowstation.TARGET_NONE)
         self.comp.params['Fl_I:Mach'] = 0.6
+        flowstation.set_static(comp.params, comp.Fl_I_data, flowstation.TARGET_Mach)
         comp.params['design'] = True
 
         p.run()
