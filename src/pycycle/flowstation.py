@@ -1,5 +1,6 @@
 from os.path import dirname, join
 from Cantera import *
+from scipy.optimize import newton
 
 import pycycle
 
@@ -27,31 +28,6 @@ class FlowStationData:
         self.station_name    = station_name
         self.flow            = flow
         self.species         = species
-
-def _secant(f, x0, tol=1e-7, x_min=1e-15, x_max=1e15, max_dx=1e15):
-    '''Secant solver with a limit on overall step size'''
-    if x0 >= 0:
-        x1 = x0 * (1 + 1e-2) + 1e-2
-    else:
-        x1 = x0 * (1 + 1e-2) - 1e-2
-    a, b = f(x1), f(x0)
-    if abs(b) > abs(a):
-        x1, x0 = x0, x1
-        a, b = b, a
-    dx = b * (x0 - x1) / float(b - a)
-    while abs(dx) < tol * (1 + abs(x0)):
-        dx = b * (x0 - x1) / float(b - a)
-        df = abs((a - b) / (b + 1e-10))
-        if abs(dx) > max_dx:
-            dx = max_dx * dx / abs(dx)
-        if x0 - dx < x_min:
-            x1, x0 = x0, (x_min + x0) / 2
-        elif x0 - dx > x_max:
-            x1, x0 = x0, (x_max + x0) / 2
-        else:
-            x1, x0 = x0, x0 - dx
-        a, b = b, f(x0)
-    return x0 - dx
 
 def init_fs_tree(add_var, station_name):
     '''Adds FlowStation variables to a data structure (e.g. a component's parameters or unknowns) and returns an object containing additional data.'''
@@ -172,8 +148,8 @@ def set_total_hP(variables, data, hin, Pin, set_statics_by):
     def f(Tt):
         data.flow.set(T=Tt * 5.0 / 9.0, P=Pin * 6894.75729)
         data.flow.equilibrate('TP')
-        return hin - data._flow.enthalpy_mass() * 0.0004302099943161011
-    _secant(f, variables['%s:Tt' % sn], x_min=0)
+        return hin - data.flow.enthalpy_mass() * 0.0004302099943161011
+    newton(f, variables['%s:Tt' % sn])
     _total_calcs(variables, data, set_statics_by)
 
 def set_total_sP(variables, data, Sin, Pin, set_statics_by):
@@ -261,14 +237,18 @@ def set_static_Mach(variables, data):
         print variables['%s:Mach' % sn], mach_target
         return variables['%s:Mach' % sn] - mach_target
     Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2 * mach_target ** 2) ** (variables['%s:gamt' % sn] / (1 - variables['%s:gamt' % sn])) * 0.9
-    _secant(f, Ps_guess, x_min=0, x_max=variables['%s:Pt' % sn])
+    newton(f, Ps_guess)
+    print variables['%s:Mach' % sn]
 
 def set_static_Ps(variables, data):
     '''Set the statics based on pressure'''
     sn = data.station_name
     _set_comp(data.species, data.flow)
-    data.flow.set(T=variables['%s:Ts' % sn] * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729, S=variables['%s:s' % sn] * 4184.0)
-    data.flow.equilibrate('SP')
+    def f(Ts):
+        data.flow.set(T=Ts * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729) # 6894.75729 Pa/psi
+        data.flow.equilibrate('TP')
+        return variables['%s:s' % sn] - data.flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
+    newton(f, variables['%s:Ts' % sn])
     variables['%s:Ts' % sn] = data.flow.temperature() * 9.0 / 5.0
     variables['%s:rhos' % sn] = data.flow.density() * 0.0624
     variables['%s:gams' % sn] = data.flow.cp_mass() / data.flow.cv_mass()
@@ -287,20 +267,20 @@ def set_static_area(variables, data):
         variables['%s:Ps' % sn] = Ps
         set_static_Ps(variables, data)
         return 1 - variables['%s:Mach' % sn]
-    Ps_M1 = _secant(f, Ps_guess, x_min=0, x_max=variables['%s:Pt' % sn])
+    Ps_M1 = newton(f, Ps_guess)
     # find the subsonic solution first
     guess = (variables['%s:Pt' % sn] + Ps_M1) / 2
     def f(Ps):
         variables['%s:Ps' % sn] = Ps
         set_static_ps(variables, data)
         return variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0 - target_area
-    _secant(f, guess, x_min=Ps_M1, x_max=variables['%s:Pt' % sn])
+    newton(f, guess)
     # if you want the supersonic one, just keep going with a little lower initial guess    
     if variables['%s:is_super' % sn]:
         # jsg: wild guess of 1/M_subsonic
         mach_guess = 1 / variables['%s:Mach' % sn]
         Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2 * mach_guess ** 2) ** (variables['%s:gamt' % sn] / (1 - variables['%s:gamt' % sn]))
-        _secant(f, Ps_guess, x_min=0, x_max=Ps_M1)
+        newton(f, Ps_guess)
 
 def set_static(variables, data, set_by):
     '''Determine which static calc to use'''
