@@ -145,11 +145,8 @@ def set_total_hP(variables, data, hin, Pin, set_statics_by):
     _set_comp(data.species, data.flow)
     variables['%s:ht' % sn] = hin
     variables['%s:Pt' % sn] = Pin
-    def f(Tt):
-        data.flow.set(T=Tt * 5.0 / 9.0, P=Pin * 6894.75729)
-        data.flow.equilibrate('TP')
-        return hin - data.flow.enthalpy_mass() * 0.0004302099943161011
-    newton(f, variables['%s:Tt' % sn])
+    data.flow.set(H=hin / 0.0004302099943161011, P=Pin * 6894.75729)
+    data.flow.equilibrate('HP', loglevel=1)
     _total_calcs(variables, data, set_statics_by)
 
 def set_total_sP(variables, data, Sin, Pin, set_statics_by):
