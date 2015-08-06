@@ -28,7 +28,7 @@ class FlowStationData:
         self.flow            = flow
         self.species         = species
 
-def _secant(f, x0, tol=1e-7, x_min=1e15, x_max=1e15, max_dx=1e15):
+def _secant(f, x0, tol=1e-7, x_min=1e-15, x_max=1e15, max_dx=1e15):
     '''Secant solver with a limit on overall step size'''
     if x0 >= 0:
         x1 = x0 * (1 + 1e-2) + 1e-2
@@ -151,7 +151,6 @@ def _total_calcs(variables, data, set_statics_by):
     variables['%s:Cv' % sn]     = data.flow.cv_mass() * 2.388459e-4
     variables['%s:gamt' % sn]   = variables['%s:Cp' % sn] / variables['%s:Cv' % sn]
     set_static(variables, data, set_statics_by)
-    variables['%s:Wc' % sn]     = variables['%s:W' % sn] * (variables['%s:Tt' % sn] / 518.67) ** 0.5 / (variables['%s:Pt' % sn] / 14.696)
     variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data.flow.temperature() / data.flow.meanMolecularWeight()) * 3.28084
 
 def set_total_TP(variables, data, Tin, Pin, set_statics_by):
@@ -174,9 +173,8 @@ def set_total_hP(variables, data, hin, Pin, set_statics_by):
         data.flow.set(T=Tt * 5.0 / 9.0, P=Pin * 6894.75729)
         data.flow.equilibrate('TP')
         return hin - data._flow.enthalpy_mass() * 0.0004302099943161011
-    _secant(f, float(variables['%s:Tt' % sn]), x_min=0) # TODO is it okay to pass variables[...] directly?
+    _secant(f, variables['%s:Tt' % sn], x_min=0)
     _total_calcs(variables, data, set_statics_by)
-
 
 def set_total_sP(variables, data, Sin, Pin, set_statics_by):
     '''Set total condition based on S and P'''
@@ -260,6 +258,7 @@ def set_static_Mach(variables, data):
     def f(Ps):
         variables['%s:Ps' % sn] = Ps
         set_static_Ps(variables, data)
+        print variables['%s:Mach' % sn], mach_target
         return variables['%s:Mach' % sn] - mach_target
     Ps_guess = variables['%s:Pt' % sn] * (1 + (variables['%s:gamt' % sn] - 1) / 2 * mach_target ** 2) ** (variables['%s:gamt' % sn] / (1 - variables['%s:gamt' % sn])) * 0.9
     _secant(f, Ps_guess, x_min=0, x_max=variables['%s:Pt' % sn])
@@ -267,17 +266,19 @@ def set_static_Mach(variables, data):
 def set_static_Ps(variables, data):
     '''Set the statics based on pressure'''
     sn = data.station_name
-    def f(Ts):
-        _set_comp(data.species, data.flow)
-        data.flow.set(T=Ts * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729) # 6894.75729 Pa/psi
-        data.flow.equilibrate('TP')
-        return variables['%s:s' % sn] - data.flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
-    _secant(f, variables['%s:Ts' % sn], x_min=200, x_max=5000, max_dx=5000)
+    _set_comp(data.species, data.flow)
+#    def f(Ts):
+#        data.flow.set(T=Ts * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729) # 6894.75729 Pa/psi
+#        data.flow.equilibrate('TP')
+#        return variables['%s:s' % sn] - data.flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
+#    _secant(f, variables['%s:Ts' % sn], x_min=200, x_max=5000, max_dx=5000)
+    data.flow.set(T=variables['%s:Ts' % sn] * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729, S=variables['%s:s' % sn] * 4184.0)
+    data.flow.equilibrate('SP')
     variables['%s:Ts' % sn] = data.flow.temperature() * 9.0 / 5.0
     variables['%s:rhos' % sn] = data.flow.density() * 0.0624
     variables['%s:gams' % sn] = data.flow.cp_mass() / data.flow.cv_mass()
     variables['%s:hs' % sn] = data.flow.enthalpy_mass() * 0.0004302099943161011
-    variables['%s:Vflow' % sn] = (778.169 * 32.1740 * 2 * (variables['%s:ht' % sn] - variables['%s:hs' % sn])) ** 0.5
+    variables['%s:Vflow' % sn] = math.sqrt((778.169 * 32.1740 * 2 * (variables['%s:ht' % sn] - variables['%s:hs' % sn]))) # 778.169 lb-f / J; 32.1740 ft/s^2 = g
     variables['%s:Vsonic' % sn] = math.sqrt(variables['%s:gams' % sn] * GasConstant * data.flow.temperature() / data.flow.meanMolecularWeight()) * 3.28084
     variables['%s:Mach' % sn] = variables['%s:Vflow' % sn] / variables['%s:Vsonic' % sn]
     variables['%s:area' % sn] = variables['%s:W' % sn] / (variables['%s:rhos' % sn] * variables['%s:Vflow' % sn]) * 144.0
@@ -309,8 +310,8 @@ def set_static_area(variables, data):
 def set_static(variables, data, set_by):
     '''Determine which static calc to use'''
     sn = data.station_name
-    if (variables['%s:Tt' % sn] and variables['%s:Pt' % sn]): # if non zero
-        variables['%s:Wc' % sn] = variables['%s:W' % sn] * (variables['%s:Tt' % sn] / 518.67) ** 0.5 / (variables['%s:Pt' % sn] / 14.696)
+    if variables['%s:Tt' % sn] and variables['%s:Pt' % sn]: # if non zero
+        variables['%s:Wc' % sn] = math.sqrt(variables['%s:W' % sn] * (variables['%s:Tt' % sn] / 518.67)) / (variables['%s:Pt' % sn] / 14.696)
     if set_by == SET_BY_NONE:
         variables['%s:Ps' % sn]    = variables['%s:Pt' % sn]
         variables['%s:Ts' % sn]    = variables['%s:Tt' % sn]
