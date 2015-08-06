@@ -43,6 +43,7 @@ class Compressor(CycleComponent):
             ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / params['eff_des'] + params['Fl_I:ht']
             flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
             unknowns['Fl_O:Mach'] = params['MNexit_des']
+            flowstation.set_static(unknowns, self.Fl_O_data, flowstation.SET_BY_Mach)
             self._exit_area_des = unknowns['Fl_O:area']
             self._Wc_des = params['Fl_I:Wc']
         else:
@@ -55,7 +56,7 @@ class Compressor(CycleComponent):
             ht_out = (fs_ideal[0][':ht'] - params['Fl_I:ht']) / unknowns['eff'] + params['Fl_I:ht']
             flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
             unknowns['Fl_O:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
-        C = GAS_CONSTANT * math.log(unknowns['PR'])
+        C = flowstation.GAS_CONSTANT * math.log(unknowns['PR'])
         delta_s = unknowns['Fl_O:s'] - params['Fl_I:s']
         unknowns['eff_poly'] = C / (C + delta_s)
         unknowns['pwr'] = params['Fl_I:W'] * (unknowns['Fl_O:ht'] - params['Fl_I:ht']) * 1.4148532 # btu/s to hp
