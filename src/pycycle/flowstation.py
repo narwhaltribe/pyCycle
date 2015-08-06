@@ -267,11 +267,6 @@ def set_static_Ps(variables, data):
     '''Set the statics based on pressure'''
     sn = data.station_name
     _set_comp(data.species, data.flow)
-#    def f(Ts):
-#        data.flow.set(T=Ts * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729) # 6894.75729 Pa/psi
-#        data.flow.equilibrate('TP')
-#        return variables['%s:s' % sn] - data.flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
-#    _secant(f, variables['%s:Ts' % sn], x_min=200, x_max=5000, max_dx=5000)
     data.flow.set(T=variables['%s:Ts' % sn] * 5.0 / 9.0, P=variables['%s:Ps' % sn] * 6894.75729, S=variables['%s:s' % sn] * 4184.0)
     data.flow.equilibrate('SP')
     variables['%s:Ts' % sn] = data.flow.temperature() * 9.0 / 5.0
