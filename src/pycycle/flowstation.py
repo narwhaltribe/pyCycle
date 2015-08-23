@@ -133,17 +133,16 @@ class FlowStation(Component):
 
     def burn(self, params, unknowns, fuel, Wfuel, hfuel):
         '''Burn a fuel with this station'''
-        W_1 = unknowns['W'] if unknowns['W'] else params['W']
-        unknowns['W'] = W_1 + Wfuel 
+        W_1 = params['W']
+        params['W'] = W_1 + Wfuel 
         for i in range(0, len(self._species)):
             if (fuel - 1) == i:
-                self._species[i] = (W_1 * self._species[i] + Wfuel) / unknowns['W']
+                self._species[i] = (W_1 * self._species[i] + Wfuel) / params['W']
             else:
-                self._species[i] = (W_1 * self._species[i]) / unknowns['W']
-        unknowns['ht'] = (W_1 * (unknowns['ht'] if unknowns['ht'] else params['ht']) + Wfuel * hfuel) / unknowns['W']
-        FAR = unknowns['FAR'] if unknowns['FAR'] else params['FAR']
-        air1 = W_1 * (1.0 / (1.0 + FAR + params['WAR']))
-        unknowns['FAR'] = (air1 * FAR + Wfuel) / air1
+                self._species[i] = (W_1 * self._species[i]) / params['W']
+        unknowns['ht'] = (W_1 * (unknowns['ht'] if unknowns['ht'] else params['ht']) + Wfuel * hfuel) / params['W']
+        air1 = W_1 * (1.0 / (1.0 + params['FAR'] + params['WAR']))
+        params['FAR'] = (air1 * FAR + Wfuel) / air1
         self._set_comp(unknowns)
         self._flow.set(T=2660 * 5 / 9, P=params['Pt'] * 6894.75729)
         self._flow.equilibrate('TP')
@@ -183,7 +182,7 @@ class FlowStation(Component):
         unknowns['Vflow']  = math.sqrt((778.169 * 32.1740 * 2 * (ht - unknowns['hs']))) # 778.169 lb-f / J; 32.1740 ft/s^2 = g
         unknowns['Vsonic'] = math.sqrt(unknowns['gams'] * GasConstant * self._flow.temperature() / self._flow.meanMolecularWeight()) * 3.28084
         unknowns['Mach']   = unknowns['Vflow'] / unknowns['Vsonic']
-        unknowns['area']   = params['W'] / (rhos * unknowns['Vflow']) * 144.0
+        unknowns['area']   = params['W'] / (unknowns['rhos'] * unknowns['Vflow']) * 144.0
 
     def solve_statics_area(self, params, unknowns):
         '''Set the statics based on area'''
