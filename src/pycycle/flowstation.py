@@ -8,7 +8,7 @@ import pycycle
 GAS_CONSTANT = 0.0685592 # Btu/lbm-R
 
 class FlowStation(Component):
-    '''Thermodynamics analysis of fluid _flow'''
+    '''Thermodynamics analysis of fluid flow'''
     reactant_names = []
     reactant_splits =[]
     # add a reactant that can be mixed in
@@ -42,11 +42,11 @@ class FlowStation(Component):
         add_duo('Ts', 'static temperature', 'degR')
         add_duo('Ps', 'static pressure', 'lbf/inch**2')
         add_duo('rhos', 'static density', 'lbm/ft**3')
-        add_duo('V_flow', 'velocity', 'ft/s')
+        add_duo('Vflow', 'velocity', 'ft/s')
         add_duo('Vsonic', 'speed of sound', 'ft/s')
         add_duo('Mach', 'Mach number', None)
-        add_duo('area', '_flow area', 'inch**2')
-        self.add_param('W', 0.0, desc='weight _flow', units='lbm/s')
+        add_duo('area', 'flow area', 'inch**2')
+        self.add_param('W', 0.0, desc='weight flow', units='lbm/s')
         self.add_param('FAR', 0.0, desc='fuel-to-air ratio')
         self.add_param('WAR', 0.0, desc='water-to-air ratio')
         self.add_param('is_super', False, desc='selects preference for supersonic versus subsonic solution when setting area')
@@ -54,7 +54,7 @@ class FlowStation(Component):
         self.add_output('gamt', 0.0, 'total gamma')
         self.add_output('Cp', 0.0, desc='specific heat at constant pressure', units='Btu/lbm*degR')
         self.add_output('Cv', 0.0, desc='specific heat at constant volume', units='Btu/lbm*degR')
-        self.add_output('Wc', 0.0, desc='corrected weight _flow', units='lbm/s')
+        self.add_output('Wc', 0.0, desc='corrected weight flow', units='lbm/s')
         #properties file path
         self._flow = importPhase(_prop_file)
         self._species = [1.0, 0, 0, 0, 0, 0, 0, 0]
@@ -150,8 +150,8 @@ class FlowStation(Component):
         self._flow.equilibrate('TP')
         self._flow.set(H=unknowns['ht'] / 0.0004302099943161011, P=params['Pt'] * 6894.75729)
         data._flow.equilibrate('HP')
-        unknowns['Tt'] = self._flow.temperature() * 9.0 / 5.0
-        unknowns['s'] = self._flow.entropy_mass() * 0.000238845896627
+        unknowns['Tt']   = self._flow.temperature() * 9.0 / 5.0
+        unknowns['s']    = self._flow.entropy_mass() * 0.000238845896627
         unknowns['rhot'] = self._flow.density() * 0.0624
         unknowns['gamt'] = self._flow.cp_mass() / self._flow.cv_mass()
 
@@ -181,10 +181,10 @@ class FlowStation(Component):
         unknowns['rhos']   = self._flow.density() * 0.0624
         unknowns['gams']   = self._flow.cp_mass() / self._flow.cv_mass()
         unknowns['hs']     = self._flow.enthalpy_mass() * 0.0004302099943161011
-        unknowns['V_flow']  = math.sqrt((778.169 * 32.1740 * 2 * (ht - unknowns['hs']))) # 778.169 lb-f / J; 32.1740 ft/s^2 = g
+        unknowns['Vflow']  = math.sqrt((778.169 * 32.1740 * 2 * (ht - unknowns['hs']))) # 778.169 lb-f / J; 32.1740 ft/s^2 = g
         unknowns['Vsonic'] = math.sqrt(unknowns['gams'] * GasConstant * self._flow.temperature() / self._flow.meanMolecularWeight()) * 3.28084
-        unknowns['Mach']   = unknowns['V_flow'] / unknowns['Vsonic']
-        unknowns['area']   = params['W'] / (rhos * unknowns['V_flow']) * 144.0
+        unknowns['Mach']   = unknowns['Vflow'] / unknowns['Vsonic']
+        unknowns['area']   = params['W'] / (rhos * unknowns['Vflow']) * 144.0
 
     def solve_statics_area(self, params, unknowns):
         '''Set the statics based on area'''
@@ -197,7 +197,7 @@ class FlowStation(Component):
         def f(Ps):
             unknowns['Ps'] = Ps
             self.solve_statics_Ps(params, unknowns, Ps=Ps)
-            return params['area'] - params['W'] / (unknowns['rhos'] * unknowns['V_flow']) * 144.0
+            return params['area'] - params['W'] / (unknowns['rhos'] * unknowns['Vflow']) * 144.0
         newton(f, guess)
         # if you want the supersonic one, just keep going with a little lower initial guess    
         if params['is_super']:
@@ -224,7 +224,7 @@ class FlowStation(Component):
             unknowns['rhos']  = unknowns['rhot'] if unknowns['rhot'] else params['rhot']
             unknowns['gams']  = unknowns['gamt'] if unknowns['gamt'] else params['gamt']
             unknowns['hs']    = unknowns['ht'] if unknowns['ht'] else params['ht']
-            unknowns['V_flow'] = 0.0
+            unknowns['Vflow'] = 0.0
             unknowns['Mach']  = 0.0
 
     def solve_statics_Ts_Ps_MN(self, params, unknowns, Ts, Ps, MN):
@@ -238,4 +238,4 @@ class FlowStation(Component):
             unknowns['Pt'] = Ps * (1.0 + (gamt - 1.0) / 2.0 * MN ** 2) ** (gamt / gamt - 1.0))
             set_total_TP(variables, data, params['Tt'], params['Pt'])
         solve_statics_Mach(params, unknowns)
-        unknowns['area'] = params['W'] / (unknowns['rhos'] * unknowns['V_flow']) * 144.0
+        unknowns['area'] = params['W'] / (unknowns['rhos'] * unknowns['Vflow']) * 144.0
