@@ -218,7 +218,7 @@ class FlowStation(Component):
         elif params['Ps']:
             self.solve_statics_Ps(params, unknowns)
         else:
-            unknowns['Ps']    = params['Pt']
+            unknowns['Ps']    = unknowns['Pt'] if unknowns['Pt'] else params['Pt']
             unknowns['Ts']    = unknowns['Tt'] if unknowns['Tt'] else params['Tt']
             unknowns['rhos']  = unknowns['rhot'] if unknowns['rhot'] else params['rhot']
             unknowns['gams']  = unknowns['gamt'] if unknowns['gamt'] else params['gamt']
@@ -226,15 +226,14 @@ class FlowStation(Component):
             unknowns['Vflow'] = 0.0
             unknowns['Mach']  = 0.0
 
-    def solve_statics_Ts_Ps_MN(self, params, unknowns, Ts, Ps, MN):
+    def solve_statics_Ts_Ps_MN(self, params, unknowns):
         '''Set the statics based on Ts, Ps, and MN'''
         # UPDGRADED TO USE LOOPS
         # do this twice beacause gamt changes
         for n in range(2):
             Ts_tmp = unknowns['Ts'] if unknowns['Ts'] else params['Ts']
-            gamt = unknowns['gamt'] if unknowns['gamt'] else params['gamt']
             unknowns['Tt'] = Ts_tmp * (1.0 + (gamt - 1.0) / 2.0 * MN ** 2)
-            unknowns['Pt'] = Ps * (1.0 + (gamt - 1.0) / 2.0 * MN ** 2) ** (gamt / gamt - 1.0))
+            unknowns['Pt'] = Ps * (1.0 + (unknowns['gamt'] - 1.0) / 2.0 * MN ** 2) ** (unknowns['gamt'] / unknowns['gamt'] - 1.0))
             set_total_TP(variables, data, params['Tt'], params['Pt'])
         solve_statics_Mach(params, unknowns)
         unknowns['area'] = params['W'] / (unknowns['rhos'] * unknowns['Vflow']) * 144.0
