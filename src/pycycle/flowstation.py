@@ -92,12 +92,11 @@ class FlowStation(Component):
         self._species = [0 for x in range(len(reactant_names))]
         self._species[i - 1] = 1
               
-    def set_WAR(self, params, unknowns, WAR):
+    def set_WAR(self, params, unknowns):
         '''Set the compositon to air with water'''
-        params['WAR'] = WAR
         params['FAR'] = 0.0
-        data._species[0] = 1.0 / (1.0 + WAR)
-        data._species[1] = WAR / (1.0 + WAR)
+        data._species[0] = 1.0 / (1.0 + params['WAR'])
+        data._species[1] = params['WAR'] / (1.0 + params['WAR'])
         self._set_comp()
         self.solve_statics(params, unknowns)
         
