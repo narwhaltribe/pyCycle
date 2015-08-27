@@ -18,6 +18,13 @@ def add_reactant(reactants, splits):
     assert len(reactants) == len(splits)
     REACTANT_NAMES.append(reactants)
     REACTANT_SPLITS.append(splits)
+# For right now, all are Air/Fuel 
+add_reactant(['N2', 'O2', 'AR', 'CO2'], [0.755184, 0.231416, 0.012916, 0.000485])
+add_reactant(['H2O'], [1.0])
+add_reactant(['CH2', 'CH'], [0.922189, 0.07781])
+add_reactant(['C', 'H'], [0.86144, 0.13856])
+add_reactant(['Jet-A(g)'], [1.0])
+add_reactant(['H2'], [1.0])
 
 _DIRECTORY = dirname(pycycle.__file__)
 _PROP_FILE = join(_DIRECTORY, 'gri1000.cti')
@@ -83,7 +90,7 @@ def _total_calcs(flow, W, hs, Ts, Ps, Mach, area, is_super):
     return Output(ht=ht, Tt=Tt, Pt=Pt, s=s, hs=out.hs, Ts=out.Ts, Ps=out.Ps, Mach=out.Mach, area=out.area, Vsonic=Vsonic, Vflow=out.Vflow, rhos=out.rhos, rhot=rhot, gams=out.gams, gamt=gamt, Cp=Cp, Cv=Cv, Wc=out.Wc) 
 
 def solve_totals(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=-1.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=-1.0, area=-1.0, is_super=False):
-    '''Set total conditions based on T an P'''
+    '''Calculate total conditions based on T, h, or s, and P'''
     assert Tt != -1 or ht != -1 or s != -1
     flow = _init_flow()
     if Tt != -1:
@@ -121,7 +128,7 @@ def solve_totals(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=-1.0, hs=-1.0, Ts=-1.0, Ps=-1.0
 #        unknowns['gamt'] = self._flow.cp_mass() / self._flow.cv_mass()
 
 def solve_statics_Mach(Mach, Pt, gamt, Ts, ht, s, Tt, W):
-    '''Set the statics based on Mach'''
+    '''Calculate the statics based on Mach'''
     out = [None] # Makes out[0] a reference
     def f(Ps):
         out[0] = solve_statics_Ps(Ps=Ps, s=s, Ts=Ts, Tt=Tt, ht=ht, W=W)
@@ -131,7 +138,7 @@ def solve_statics_Mach(Mach, Pt, gamt, Ts, ht, s, Tt, W):
     return out[0]
 
 def solve_statics_Ps(Ps, s, Ts, Tt, ht, W):
-    '''Set the statics based on pressure'''
+    '''Calculate the statics based on pressure'''
     flow = _init_flow()
     def f(Ts):
         flow.set(T=Ts * 5.0 / 9.0, P=Ps * 6894.75729) # 6894.75729 Pa/psi
@@ -150,7 +157,7 @@ def solve_statics_Ps(Ps, s, Ts, Tt, ht, W):
     return Output(ht=ht, Tt=Tt, Ps=Ps, s=s, Ts=Ts, W=W, rhos=rhos, gams=gams, hs=hs, Vflow=Vflow, Vsonic=Vsonic, Mach=Mach, area=area)
 
 def solve_statics_area(area, Pt, gamt, Ts, ht, s, Tt, W, is_super):
-    '''Set the statics based on area'''
+    '''Calculate the statics based on area'''
     flow = _init_flow()
     Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0) ** (gamt / (1.0 - gamt)) # at mach 1
     statics_M1 = solve_statics_Mach(Mach=1.0, Pt=Pt, gamt=gamt, Ts=Ts, ht=ht, s=s, Tt=Tt, W=W)
@@ -197,11 +204,3 @@ def solve_statics(Tt=-1.0, Pt=-1.0, W=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=
 #            set_total_TP(variables, data, unknowns['Tt:out'], unknowns['Pt:out'])
 #        solve_statics_Mach(params, unknowns)
 #        unknowns['area:out'] = params['W'] / (unknowns['rhos'] * unknowns['Vflow']) * 144.0
-
-# For right now, all  are Air/Fuel 
-add_reactant(['N2', 'O2', 'AR', 'CO2'], [0.755184, 0.231416, 0.012916, 0.000485])
-add_reactant(['H2O'], [1.0])
-add_reactant(['CH2', 'CH'], [0.922189, 0.07781])
-add_reactant(['C', 'H'], [0.86144, 0.13856])
-add_reactant(['Jet-A(g)'], [1.0])
-add_reactant(['H2'], [1.0])
