@@ -75,8 +75,8 @@ def _set_comp(flow, species):
 #        self._set_comp()
 #        self.solve_statics(params, unknowns)
         
-def solve_totals(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=-1.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=-1.0, area=-1.0, is_super=False):
-    '''Calculate total conditions based on T, h, or s, and P'''
+def solve(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=-1.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=-1.0, area=-1.0, is_super=False):
+    '''Calculate total and static conditions'''
     assert Tt != -1 or ht != -1 or s != -1
     flow = _init_flow()
     if Tt != -1:

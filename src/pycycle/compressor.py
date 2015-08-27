@@ -61,7 +61,7 @@ class Compressor(CycleComponent):
             # Design Calculations
             Pt_out = unknowns['flow_in:out:Pt'] * params['PR_des']
             unknowns['PR'] = params['PR_des']
-            ideal_ht = flowstation.solve_totals(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
+            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / params['eff_des'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
@@ -76,7 +76,7 @@ class Compressor(CycleComponent):
             unknowns['eff'] = params['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = unknowns['flow_in:out:Pt'] * unknowns['PR']
-            ideal_ht = flowstation.solve_totals(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
+            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / unknowns['eff'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
