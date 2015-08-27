@@ -2,7 +2,6 @@ from os.path import dirname, join
 from collections import namedtuple
 from Cantera import *
 from scipy.optimize import newton
-from openmdao.core.component import Component
 
 import pycycle
 
