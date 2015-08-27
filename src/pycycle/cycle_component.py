@@ -1,6 +1,7 @@
 import math 
 
 from openmdao.core.component import Component
+from pycycle import flowstation
 
 class CycleComponent(Component): 
 
@@ -18,7 +19,7 @@ class CycleComponent(Component):
             if not param_name in params.keys():
                 return unknowns[output_name]
             return unknowns[output_name] if unknowns[output_name] != -1 else params[param_name]
-        out = flowstation.solve(ht=var('ht'), Tt=var('Tt'), Pt=var('Pt'), s=var('s'), hs=var('hs'), Ts=var('Ts'), Ps=var('Ps'), Mach=var('Mach'), area=var('area'), W=var('W'), FAR=var('FAR'), WAR=var('WAR'), is_super=var('is_super'))
+        out = flowstation.solve(ht=var('ht'), Tt=var('Tt'), Pt=var('Pt'), s=var('s'), hs=var('hs'), Ts=var('Ts'), Ps=var('Ps'), Mach=var('Mach'), area=var('area'), W=var('W'), is_super=var('is_super'))
         def set_vars(var_dict):
             for var_name, val in var_dict.iteritems():
                 output_name = '%s:out:%s' % (name, var_name)
@@ -26,7 +27,7 @@ class CycleComponent(Component):
         set_vars({'ht': out.ht,
                   'Tt': out.Tt,
                   'Pt': out.Pt,
-                  's':  out.s.
+                  's':  out.s,
                   'hs': out.hs,
                   'Ts': out.Ts,
                   'Ps': out.Ps,
@@ -49,7 +50,7 @@ class CycleComponent(Component):
         def add_output(var_name, desc, units=None):
             self.add_output('%s:out:%s' % (name, var_name), -1.0, desc=desc, units=units)
         def add_duo(var_name, desc, units=None):
-            add_param(var_name, desc, units)
+            self.add_param('%s:in:%s' % (name, var_name), -1.0, desc=desc, units=units)
             add_output(var_name, desc, units)
         self.add_param('%s:in:is_super' % name, False, desc='selects preference for supersonic versus subsonic solution when setting area')
         add_duo('ht', 'total enthalpy', 'Btu/lbm')

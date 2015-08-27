@@ -94,9 +94,8 @@ def solve(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=-1.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=
     Tt = flow.temperature() * 9.0 / 5.0
     Cp = flow.cp_mass() * 2.388459e-4
     Cv = flow.cv_mass() * 2.388459e-4
-    Pt = flow.P / 6894.75729
     gamt = Cp / Cv
-    out = solve_statics(flow, W=W, hs=hs, Ts=Ts, Ps=Ps, Mach=Mach, area=area, is_super=is_super, ht=ht, Pt=Pt, s=s, rhot=rhot, Tt=Tt, Cp=Cp, Cv=Cv, gamt=gamt)
+    out = solve_statics(W=W, Ts=Ts, Ps=Ps, Mach=Mach, area=area, is_super=is_super, ht=ht, Pt=Pt, s=s, rhot=rhot, Tt=Tt, gamt=gamt)
     return Output(ht=ht, Tt=Tt, Pt=Pt, s=s, hs=out.hs, Ts=out.Ts, Ps=out.Ps, Mach=out.Mach, area=out.area, Vsonic=out.Vsonic, Vflow=out.Vflow, rhos=out.rhos, rhot=rhot, gams=out.gams, gamt=gamt, Cp=Cp, Cv=Cv, Wc=out.Wc) 
 
 # TODO implement self.burn()
@@ -128,7 +127,7 @@ def solve_statics_Mach(Mach, Pt, gamt, Ts, ht, s, Tt, W):
     def f(Ps):
         out[0] = solve_statics_Ps(Ps=Ps, s=s, Ts=Ts, Tt=Tt, ht=ht, W=W)
         return out[0].Mach - Mach
-    Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2) ** (gamt / (1.0 - gamt])) * 0.9
+    Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2) ** (gamt / (1.0 - gamt)) * 0.9
     newton(f, Ps_guess)
     return out[0]
 
@@ -149,7 +148,7 @@ def solve_statics_Ps(Ps, s, Ts, Tt, ht, W):
     Vsonic = math.sqrt(gams * GasConstant * flow.temperature() / flow.meanMolecularWeight()) * 3.28084
     Mach = Vflow / Vsonic
     area = W / (rhos * Vflow) * 144.0
-    return Output(Ps=Ps, Ts=Ts, rhos=rhos, gams=gams, hs=hs, Vflow=Vflow, Vsonic=Vsonic, Mach=Mach, area=area)
+    return Output(Ps=Ps, Ts=Ts, rhos=rhos, gams=gams, hs=hs, Vflow=Vflow, Vsonic=Vsonic, Mach=Mach, area=area, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0, Wc=-1.0)
 
 def solve_statics_area(area, Pt, gamt, Ts, ht, s, Tt, W, is_super):
     '''Calculate the statics based on area'''
@@ -171,7 +170,7 @@ def solve_statics_area(area, Pt, gamt, Ts, ht, s, Tt, W, is_super):
         newton(f, Ps_guess)
     return out[0]
 
-def solve_statics(Tt=-1.0, Pt=-1.0, W=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rhot=-1.0, Ts=-1.0, ht=-1.0, s=-1.0, W=-1.0, is_super=False):
+def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rhot=-1.0, Ts=-1.0, ht=-1.0, s=-1.0, W=-1.0, is_super=False):
     '''Determine which static calc to use'''
     if Tt > 0 and Pt > 0: # if non zero
         Wc = math.sqrt(W * (Tt / 518.67)) / (Pt / 14.696)
@@ -185,7 +184,7 @@ def solve_statics(Tt=-1.0, Pt=-1.0, W=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=
         out = solve_statics_Ps(Ps, s=s, Ts=Ts, Tt=Tt, ht=ht, W=W)
     else:
         Vsonic = math.sqrt(gamt * GasConstant * flow.temperature() / flow.meanMolecularWeight()) * 3.28084
-        return Output(Ps=Pt, Ts=Tt, rhos=rhot, gams=gamt, hs=ht, Vsonic=Vsonic, Vflow=0.0, Mach=0.0, area=area, Wc=Wc)
+        return Output(Ps=Pt, Ts=Tt, rhos=rhot, gams=gamt, hs=ht, Vsonic=Vsonic, Vflow=0.0, Mach=0.0, area=area, Wc=Wc, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0)
     return out._replace(Wc=Wc)
 
 # TODO implement self.solve_statics_Ts_Ps_MN()

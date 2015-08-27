@@ -3,7 +3,8 @@ import math
 from openmdao.core.component import Component
 from openmdao.core.group import Group
 
-from pycycle.flowstation import FlowStation, GAS_CONSTANT
+from pycycle import flowstation
+from pycycle.flowstation import GAS_CONSTANT
 from pycycle.cycle_component import CycleComponent
 
 class Compressor(Group):
@@ -31,7 +32,7 @@ class Compressor(CycleComponent):
     '''Basis for axial compressor performance calculations (without flowstations)''' 
 
     def __init__(self):
-        super(CompressorCore, self).__init__()
+        super(Compressor, self).__init__()
         self.add_param('PR_des', 12.47, desc='Pressure ratio at design conditions')
         self.add_param('MNexit_des', 0.4, desc='mach number at the compressor exit at design conditions')
         self.add_param('eff_des', 0.95, desc='adiabatic efficiency at the design condition')

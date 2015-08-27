@@ -5,7 +5,7 @@ from openmdao.core.group import Group
 
 from pycycle.api import Compressor
 from test_util import assert_rel_error
-from pycycle.flowstation import FlowStation
+from pycycle import flowstation
 
 class CompressorTestCase(unittest.TestCase):
 
