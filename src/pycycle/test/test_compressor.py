@@ -38,12 +38,12 @@ class CompressorTestCase(unittest.TestCase):
         p.run()
 
         TOL = 0.001
-        assert_rel_error(self, comp.unknowns['flow_out:W'], 1.08, TOL)
-        assert_rel_error(self, comp.unknowns['flow_out:Pt'], 0.33899, TOL)
-        assert_rel_error(self, comp.unknowns['flow_out:Tt'], 1424.01, TOL)
-        assert_rel_error(self, comp.unknowns['flow_out:rhos'], 0.000594, TOL)
-        assert_rel_error(self, comp.unknowns['flow_out:Mach'], 0.4 ,TOL)
-        assert_rel_error(self, comp.unknowns['flow_out:area:out'], 364.7, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 1.08, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.33899, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 1424.01, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], 0.000594, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 0.4 ,TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 364.7, TOL)
         assert_rel_error(self, comp.unknowns['pwr'], 303.2, TOL)
         assert_rel_error(self, comp.unknowns['eff_poly'], 0.8545, TOL)
 
@@ -52,21 +52,19 @@ class CompressorTestCase(unittest.TestCase):
         p.run()
 
         # values should remain unchanged in off-design at design condition
-        assert_rel_error(self,comp.Fl_O.W, 1.08,TOL)
-        assert_rel_error(self,comp.Fl_O.Pt, .33899, TOL)
-        assert_rel_error(self,comp.Fl_O.Tt, 1424.01, TOL)
-        assert_rel_error(self,comp.Fl_O.rhos, .000594, TOL)
-        assert_rel_error(self,comp.Fl_O.Mach, .4 ,TOL)
-        assert_rel_error(self,comp.Fl_O.area, 364.7, TOL)
-        assert_rel_error(self,comp.pwr, 303.2, TOL)
-        assert_rel_error(self,comp.eff_poly, .8545, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 1.08, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.33899, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 1424.01, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], 0.000594, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 0.4 ,TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 364.7, TOL)
+        assert_rel_error(self, comp.unknowns['pwr'], 303.2, TOL)
+        assert_rel_error(self, comp.unknowns['eff_poly'], 0.8545, TOL)
 
         # try changing something
-        comp.params['Fl_I:W'] *= 1.1
-        p = Problem(root=comp)
-        p.setup()
+        comp.params['flow_in:in:W'] *= 1.1
         p.run()
-        assert_rel_error(self, comp.PR, 13.52995, TOL)
+        assert_rel_error(self, comp.unknowns['PR'], 13.52995, TOL)
 
 if __name__ == "__main__":
     unittest.main()

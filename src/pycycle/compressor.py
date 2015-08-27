@@ -47,14 +47,16 @@ class Compressor(CycleComponent):
         self._add_flowstation('flow_in')
         self._add_flowstation('flow_out')
 
-    def _op_line(self, params, unknowns):
+    def _op_line(self, params, Wc):
         '''Relationship between compressor pressure ratio and mass flow''' 
         b = 1 - params['op_slope'] # scaled PR and Wc at design are both 1
         # assume a linear op line, with given slope
-        norm_PR = params['op_slope'] * (params['flow_in:Wc'] / self._Wc_des) + b 
-        return norm_PR * self.core.params['PR_des']
+        norm_PR = params['op_slope'] * (Wc / self._Wc_des) + b 
+        return norm_PR * params['PR_des']
 
     def solve_nonlinear(self, params, unknowns, resids):
+        self._clear_unknowns('flow_in', unknowns)
+        self._clear_unknowns('flow_out', unknowns)
         self._solve_flow_vars('flow_in', params, unknowns)
         unknowns['flow_out:out:W'] = params['flow_in:in:W']
 #        flow_ideal = FlowStation()
@@ -62,7 +64,7 @@ class Compressor(CycleComponent):
             # Design Calculations
             Pt_out = unknowns['flow_in:out:Pt'] * params['PR_des']
             unknowns['PR'] = params['PR_des']
-            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
+            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out, W=0.0).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / params['eff_des'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
@@ -77,9 +79,10 @@ class Compressor(CycleComponent):
             unknowns['eff'] = params['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = unknowns['flow_in:out:Pt'] * unknowns['PR']
-            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
+            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out, W=0.0).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / unknowns['eff'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
+            print ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
 #            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
             unknowns['flow_out:out:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area

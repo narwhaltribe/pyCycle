@@ -9,6 +9,10 @@ class CycleComponent(Component):
         super(CycleComponent, self).__init__()
         self.add_param('design', False, desc='flag to indicate that the calculations are design conditions')
 
+    def _clear_unknowns(self, name, unknowns):
+        for var_name in ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc'):
+            unknowns['%s:out:%s' % (name, var_name)] = -1.0
+
     def _solve_flow_vars(self, name, params, unknowns):
         def var(var_name):
             param_name = '%s:in:%s' % (name, var_name)
