@@ -18,7 +18,7 @@ class Duct(CycleComponent):
         unknowns['flow_out:out:Pt'] = Pt_out
         unknowns['flow_out:out:W'] = params['flow_in:in:W']
         if params['design']: 
-            unknowns['flow_out:out:Mach'] = self.MNexit_des
+            unknowns['flow_out:out:Mach'] = self.params['MNexit_des']
             self._solve_flow_vars('flow_out', params, unknowns)
             self._exit_area_des = unknowns['flow_out:out:area']
         else: 
