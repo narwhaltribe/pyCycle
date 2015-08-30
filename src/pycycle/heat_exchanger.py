@@ -2,7 +2,7 @@
 preHeatEx.py -  (Run this before heatExchanger2.py)
     Performs inital energy balance for a basic heat exchanger design
 
-    Originally built by Scott Jones in NPSS, ported and augmented by Jeff Chin   
+    Originally built by Scott Jones in NPSS, ported and augmented by Jeff Chin
 
 NTU (effectiveness) Method
     Determine the heat transfer rate and outlet temperatures when the type and size of the heat exchanger is specified.
@@ -17,7 +17,7 @@ import math
 
 from pycycle.cycle_component import CycleComponent
 
-class HeatExchanger(CycleComponent): 
+class HeatExchanger(CycleComponent):
     '''Calculates output temperatures for water and air, and heat transfer, for a given water flow rate for a water-to-air heat exchanger'''
     def __init__(self):
         super(HeatExchanger, self).__init__()
