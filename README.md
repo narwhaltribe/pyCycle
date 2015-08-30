@@ -8,6 +8,7 @@
 - cyclecomponent.py
 - compressor.py
 - test/test_compressor.py
+- test/test_flowstation.py
 - test/test_util.py (new in this fork)
 
 **Files not ready for OpenMDAO 1.0**
@@ -19,7 +20,6 @@
 - splitter.py
 - start.py
 - test/test_duct.py
-- test/test_flowstation.py
 - test/test_heat_exchanger.py
 - test/test_inlet.py
 - test/test_nozzle.py
@@ -99,7 +99,7 @@ If you want to have access to the source and make changes to it while you're wor
 an install from source. Don't be scared by the cantera source install though, compared to that this is pretty 
 easy! It's only two steps. 
 
-1)Clone the repository to your local machine. If you want to clone ours: 
+1) Clone the repository to your local machine. If you want to clone ours: 
     
     git clone https://github.com/OpenMDAO-Plugins/pyCycle.git
     
