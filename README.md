@@ -7,19 +7,19 @@
 - flowstation.py (`burn()`, `solve_statics_Ts_Ps_Mach`, and functions dealing with reactants still need to be implemented)
 - cycle_component.py
 - compressor.py
+- duct.py
 - test/test_compressor.py
+- test/test_duct.py
 - test/test_flowstation.py (some functions still need to be implemented)
 - test/test_util.py (new in this fork)
 
 **Files not ready for OpenMDAO 1.0**
 
-- duct.py
 - heat_exchanger.py
 - inlet.py
 - nozzle.py
 - splitter.py
 - start.py
-- test/test_duct.py
 - test/test_heat_exchanger.py
 - test/test_inlet.py
 - test/test_nozzle.py
