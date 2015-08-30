@@ -11,6 +11,8 @@ class Duct(CycleComponent):
         self._add_flowstation('flow_out')
 
     def solve_nonlinear(self, params, unknowns, resids):
+        self._clear_unknowns('flow_in', unknowns)
+        self._clear_unknowns('flow_out', unknowns)
         self._solve_flow_vars('flow_in', params, unknowns)
         Pt_out = unknowns['flow_in:out:Pt'] * (1.0 - params['dPqP'])
         q = params['Q_dot'] / params['flow_in:in:W']
