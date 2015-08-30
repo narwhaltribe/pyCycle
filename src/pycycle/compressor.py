@@ -75,7 +75,6 @@ class Compressor(CycleComponent):
         else:
             # Assumed Op Line Calculation
             unknowns['PR'] = self._op_line(params, unknowns['flow_in:out:Wc'])
-            print 'PR', unknowns['PR']
             unknowns['eff'] = params['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = unknowns['flow_in:out:Pt'] * unknowns['PR']
