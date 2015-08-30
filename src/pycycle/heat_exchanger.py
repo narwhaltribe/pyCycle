@@ -1,8 +1,8 @@
-"""
-    preHeatEx.py -  (Run this before heatExchanger2.py)
-        Performs inital energy balance for a basic heat exchanger design
+'''
+preHeatEx.py -  (Run this before heatExchanger2.py)
+    Performs inital energy balance for a basic heat exchanger design
 
-     Originally built by Scott Jones in NPSS, ported and augmented by Jeff Chin   
+    Originally built by Scott Jones in NPSS, ported and augmented by Jeff Chin   
 
 NTU (effectiveness) Method
     Determine the heat transfer rate and outlet temperatures when the type and size of the heat exchanger is specified.
@@ -10,125 +10,56 @@ NTU (effectiveness) Method
     NTU Limitations
     1) Effectiveness of the chosen heat exchanger must be known (empirical)
 
-    Compatible with OpenMDAO v0.8.1
-"""
+    Compatible with OpenMDAO v1.0.5 Alpha
+'''
 
-from math import log, pi, sqrt, e
-
-from openmdao.main.api import Assembly, Component
-from openmdao.lib.datatypes.api import Float, Bool
-from openmdao.lib.drivers.api import BroydenSolver 
-from openmdao.main.api import convert_units as cu
+import math
 
 from pycycle.flowstation import FlowStationVar, FlowStation
 from pycycle.cycle_component import CycleComponent
 
-
-
 class HeatExchanger(CycleComponent): 
-    """Calculates output temperatures for water and air, and heat transfer, for a given 
-    water flow rate for a water-to-air heat exchanger"""
+    '''Calculates output temperatures for water and air, and heat transfer, for a given water flow rate for a water-to-air heat exchanger'''
+    def __init__(self):
+        super(HeatExchanger, self).__init__()
+        self.add_param('W_cold', 0.992, desc='mass flow rate of cold water', units='lbm/s')
+        self.add_param('Cp_cold', 0.9993, desc='specific heat of cold water', units='Btu/(lbm*R)')
+        self.add_param('T_cold_in', 518.58, desc='temperature of water into heat exchanger', units='R')
+        self.add_param('effectiveness', 0.9765, desc='heat exchange effectiveness')
+        self.add_param('MNexit_des', 0.6, desc='Mach number at exit')
+        self.add_param('dPqP', 0.1, desc='pressure differential as a fraction of incoming pressure')
+        self.add_param('T_hot_out', 1400.0, desc='temperature of air out of heat exchanger', units='R')
+        self.add_param('T_cold_out', 518.0, desc='temperature of water out of heat exchanger' units='R')
+        self._add_flowstation('flow_in')
 
-    #inputs
-    W_cold = Float(.992, iotype="in", units = 'lbm/s', desc='Mass flow rate of cold fluid (water)') 
-    Cp_cold = Float(0.9993, iotype="in", units = 'Btu/(lbm*R)', desc='Specific Heat of the cold fluid (water)') 
-    T_cold_in = Float(518.58, iotype="in", units = 'R', desc='Temp of water into heat exchanger') 
-    effectiveness = Float(.9765, iotype="in", desc='Heat Exchange Effectiveness') 
-    MNexit_des = Float(.6, iotype="in", desc="mach number at the exit of heat exchanger")
-    dPqP = Float(.1, iotype="in", desc="pressure differential as a fraction of incomming pressure")
-    #State Vars
-    T_hot_out = Float(1400, iotype="in", units = 'R', desc='Temp of air out of the heat exchanger')    
-    T_cold_out = Float(518, iotype="in", units = 'R', desc='Temp of water out of the heat exchanger') 
-    
+        self.add_output('Qreleased', 0.0, desc='energy released', units='hp')
+        self.add_output('Qabsorbed', 0.0, desc='energy absorbed', units='hp')
+        self.add_output('LMTD', 0.0, desc='logarithmic mean temperature difference')
+        self.add_output('Qmax', 0.0, desc='theoretical maximum possible heat transfer', units='hp')
+        self.add_output('resid_Qmax', 0.0, desc='residual of max*effectiveness')
+        self.add_output('resid_e_balance', 0.0, desc='residual of energy balance')
+        self._add_flowstation('flow_out')
 
-    Fl_I = FlowStationVar(iotype="in", desc="incoming air stream to heat exchanger", copy=None)
-
-    #outputs
-    Qreleased = Float(iotype="out", units = 'hp', desc='Energy Released') 
-    Qabsorbed= Float(iotype="out", units = 'hp', desc='Energy Absorbed') 
-    LMTD = Float(iotype="out", desc='Logarathmic Mean Temperature Difference')
-    Qmax= Float(iotype="out", units = 'hp', desc='Theoretical maximum possible heat transfer') 
- 
-    residual_qmax = Float(iotype="out", desc='Residual of max*effectiveness') 
-    residual_e_balance = Float(iotype="out", desc='Residual of the energy balance')
-
-    Fl_O = FlowStationVar(iotype="out", desc="outgoing air stream from heat exchanger", copy=None)
-
-    def execute(self):
-        """Calculate Various Paramters"""
-        Fl_I = self.Fl_I
-        Fl_O = self.Fl_O
-
-        T_cold_in = self.T_cold_in
-        T_cold_out = self.T_cold_out
-        T_hot_in = self.Fl_I.Tt
-        T_hot_out = self.T_hot_out
-        W_cold = self.W_cold
-        Wh = Fl_I.W
-        Cp_hot = Fl_I.Cp
-        Cp_cold = self.Cp_cold
-        
-        W_coldCpMin = W_cold*Cp_cold;
-        if ( Wh*Cp_hot < W_cold*Cp_cold ):
-            W_coldCpMin = Wh*Cp_hot
-        self.Qmax = W_coldCpMin*(T_hot_in - T_cold_in)*1.4148532; #BTU/s to hp
-
-
-        self.Qreleased = Wh*Cp_hot*(T_hot_in - T_hot_out)*1.4148532;
-        self.Qabsorbed = W_cold*Cp_cold*(T_cold_out - T_cold_in)*1.4148532;
-
-
+    def solve_nonlinear(self, params, unknowns, resids):
+        self._solve_flow_vars('flow_in', params, unknowns)
+        W_cold_Cp_Min = min(params['W_cold'] * params['Cp_cold'], unknowns['flow_in:out:W'] * unknowns['flow_in:out:Cp'])
+        unknowns['Qmax'] = W_cold_Cp_Min * (unknowns['flow_in:out:Tt'] - params['T_cold_in']) * 1.4148532 #BTU/s to hp
+        unknowns['Qreleased'] = unknowns['flow_in:out:W'] * unknowns['flow_in:out:Cp'] * (unknowns['flow_in:out:Tt'] - params['T_hot_out']) * 1.4148532
+        unknowns['Qabsorbed'] = params['W_cold'] * params['Cp_cold'] * (params['T_cold_out'] - params['T_cold_in']) * 1.4148532
         try: 
-            self.LMTD = ((T_hot_out-T_hot_in)+(T_cold_out-T_cold_in))/log((T_hot_out-T_cold_in)/(T_hot_in-T_cold_out))
+            unknowns['LMTD'] = (params['T_hot_out'] - unknowns['flow_in:out:Tt'] + params['T_cold_out'] - params['T_cold_in']) / math.log((params['T_hot_out'] - params['T_cold_in']) / (unknowns['flow_in:out:Tt'] - params['T_cold_out']))
         except ZeroDivisionError: 
-            self.LMTD = 0
+            self.LMTD = 0.0
+        unknowns['resid_Qmax'] = unknowns['Qreleased'] - params['effectiveness'] * unknowns['Qmax']
+        unknowns['resid_e_balance'] = unknowns['Qreleased'] - unknowns['Qabsorbed']
 
-        self.residual_qmax = self.Qreleased-self.effectiveness*self.Qmax
-
-        self.residual_e_balance = self.Qreleased-self.Qabsorbed
-
-        Fl_O.setTotalTP(T_hot_out, Fl_I.Pt*(1-self.dPqP))
-        Fl_O.W = Fl_I.W
-        if self.run_design: 
-            Fl_O.Mach = self.MNexit_des  
-            self._exit_area_des = Fl_O.area
+        unknowns['flow_out:out:Tt'] = params['T_hot_out']
+        unknowns['flow_out:out:Pt'] = unknowns['flow_in:out:Pt'] * (1.0 - unknowns['dPqP'])
+        unknowns['flow_out:out:W'] = unknowns['flow_in:out:W']
+        if params['design']:
+            unknowns['flow_out:out:Mach'] = params['MNexit_des']
+            self._solve_flow_vars('flow_out', params, unknowns)
+            self._exit_area_des = unknowns['flow_out:out:area']
         else: 
-            Fl_O.area = self._exit_area_des
- 
-if __name__ == "__main__":
-
-    from openmdao.main.api import set_as_top
-     
-
-    class HeatBalance(Assembly):
-
-        def configure(self):
-
-            hx = self.add('hx', HeatExchanger())
-            driver = self.add('driver',BroydenSolver())
-            driver.add_parameter('hx.T_hot_out',low=0.,high=1000.)
-            driver.add_parameter('hx.T_cold_out',low=0.,high=1000.)
-            driver.add_constraint('hx.residual_qmax=0')
-            driver.add_constraint('hx.residual_e_balance=0')
-
-            #hx.Wh = 0.49
-            #hx.Cp_hot = 1.006
-            #hx.T_hot_in = 791
-            fs = FlowStation()
-            fs.setTotalTP(1423.8, 0.302712118187) #R, psi
-            fs.W = 1.0
-            hx.Fl_I = fs
-            hx.W_cold = .45
-            hx.T_hot_out = hx.Fl_I.Tt
-            hx.T_cold_out = hx.T_cold_in
-
-            driver.workflow.add(['hx'])
-
-    test = HeatBalance()  
-    set_as_top(test)
-    test.hx.design = True
-
-    test.run()
-
-    print test.hx.W_cold, test.hx.T_hot_out, test.hx.Fl_I.Tt
-    
+            unknowns['flow_out:out:area'] = self._exit_area_des
+            self._solve_flow_vars('flow_out', params, unknowns)
