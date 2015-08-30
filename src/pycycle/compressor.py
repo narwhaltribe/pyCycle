@@ -59,7 +59,6 @@ class Compressor(CycleComponent):
         self._clear_unknowns('flow_out', unknowns)
         self._solve_flow_vars('flow_in', params, unknowns)
         unknowns['flow_out:out:W'] = params['flow_in:in:W']
-#        flow_ideal = FlowStation()
         if params['design']:
             # Design Calculations
             Pt_out = unknowns['flow_in:out:Pt'] * params['PR_des']
@@ -76,16 +75,17 @@ class Compressor(CycleComponent):
         else:
             # Assumed Op Line Calculation
             unknowns['PR'] = self._op_line(params, unknowns['flow_in:out:Wc'])
+            print 'PR', unknowns['PR']
             unknowns['eff'] = params['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = unknowns['flow_in:out:Pt'] * unknowns['PR']
             ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out, W=0.0).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / unknowns['eff'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
-            print ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
-#            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
             unknowns['flow_out:out:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
+            self._solve_flow_vars('flow_out', params, unknowns)
+#            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
 #            flowstation.set_static(unknowns, self.Fl_O_data, flowstation.SET_BY_area)
             self._solve_flow_vars('flow_out', params, unknowns)
         C = flowstation.GAS_CONSTANT * math.log(unknowns['PR'])

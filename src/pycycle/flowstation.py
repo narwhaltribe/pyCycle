@@ -122,46 +122,44 @@ def solve(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=-1.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=
 #        unknowns['rhot'] = self._flow.density() * 0.0624
 #        unknowns['gamt'] = self._flow.cp_mass() / self._flow.cv_mass()
 
-def solve_statics_Mach(Mach, Pt, gamt, Ts, ht, s, Tt, W):
+def solve_statics_Mach(Mach, Pt, gamt, ht, s, Tt, W):
     '''Calculate the statics based on Mach'''
     out = [None] # Makes out[0] a reference
     def f(Ps):
-        out[0] = solve_statics_Ps(Ps=Ps, s=s, Ts=Ts, Tt=Tt, ht=ht, W=W)
+        out[0] = solve_statics_Ps(Ps=Ps, s=s, Tt=Tt, ht=ht, W=W)
         return out[0].Mach - Mach
     Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2) ** (gamt / (1.0 - gamt)) * 0.9
     newton(f, Ps_guess)
     return out[0]
 
-def solve_statics_Ps(Ps, s, Ts, Tt, ht, W):
+def solve_statics_Ps(Ps, s, Tt, ht, W):
     '''Calculate the statics based on pressure'''
     flow = _init_flow()
-    def f(Ts):
-        flow.set(T=Ts * 5.0 / 9.0, P=Ps * 6894.75729) # 6894.75729 Pa/psi
-        flow.equilibrate('TP')
-        return s - flow.entropy_mass() * 0.000238845896627 # 0.0002... kCal/N-m
-    Ts_guess = Ts if Ts != -1 else Tt
-    newton(f, Ts_guess)
+    flow.set(S=s / 0.000238845896627, P=Ps * 6894.75729)
+    flow.equilibrate('SP')
     Ts = flow.temperature() * 9.0 / 5.0
     rhos = flow.density() * 0.0624
     gams = flow.cp_mass() / flow.cv_mass()
     hs = flow.enthalpy_mass() * 0.0004302099943161011
-    Vflow = math.sqrt((778.169 * 32.1740 * 2 * (ht - hs))) # 778.169 lb-f / J; 32.1740 ft/s^2 = g
+    Vflow = math.sqrt((778.169 * 32.1740 * 2 * (ht - hs))) # 778.169 lbf / J; 32.1740 ft/s^2 = g
     Vsonic = math.sqrt(gams * GasConstant * flow.temperature() / flow.meanMolecularWeight()) * 3.28084
     Mach = Vflow / Vsonic
     area = W / (rhos * Vflow) * 144.0
     return Output(Ps=Ps, Ts=Ts, rhos=rhos, gams=gams, hs=hs, Vflow=Vflow, Vsonic=Vsonic, Mach=Mach, area=area, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0, Wc=-1.0)
 
-def solve_statics_area(area, Pt, gamt, Ts, ht, s, Tt, W, is_super):
+def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
     '''Calculate the statics based on area'''
-    flow = _init_flow()
     Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0) ** (gamt / (1.0 - gamt)) # at mach 1
-    statics_M1 = solve_statics_Mach(Mach=1.0, Pt=Pt, gamt=gamt, Ts=Ts, ht=ht, s=s, Tt=Tt, W=W)
+    statics_M1 = solve_statics_Mach(Mach=1.0, Pt=Pt, gamt=gamt, ht=ht, s=s, Tt=Tt, W=W)
     # find the subsonic solution first
     guess = (Pt + statics_M1.Ps) / 2.0
     out = [None] # Makes out[0] a reference
     def f(Ps):
-        out[0] = solve_statics_Ps(Ps=Ps, s=s, Ts=Ts, Tt=Tt, ht=ht, W=W)
-        return area - W / (out[0].rhos * out[0].Vflow) * 144.0
+        try:
+            out[0] = solve_statics_Ps(Ps=Ps, s=s, Tt=Tt, ht=ht, W=W)
+        except ValueError:
+            return -area
+        return area - out[0].area
     newton(f, guess)
     # if you want the supersonic one, just keep going with a little lower initial guess    
     if is_super:
@@ -178,11 +176,11 @@ def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rh
     else:
         Wc = -1.0
     if Mach != -1:
-        out = solve_statics_Mach(Mach, Pt=Pt, gamt=gamt, Ts=Ts, Tt=Tt, ht=ht, s=s, W=W)
+        out = solve_statics_Mach(Mach, Pt=Pt, gamt=gamt, Tt=Tt, ht=ht, s=s, W=W)
     elif area != -1:
-        out = solve_statics_area(area, Pt=Pt, gamt=gamt, Ts=Ts, ht=ht, s=s, Tt=Tt, W=W, is_super=is_super)
+        out = solve_statics_area(area, Pt=Pt, gamt=gamt, ht=ht, s=s, Tt=Tt, W=W, is_super=is_super)
     elif Ps != -1:
-        out = solve_statics_Ps(Ps, s=s, Ts=Ts, Tt=Tt, ht=ht, W=W)
+        out = solve_statics_Ps(Ps, s=s, Tt=Tt, ht=ht, W=W)
     else:
         return Output(Ps=Pt, Ts=Tt, rhos=rhot, gams=gamt, hs=ht, Vflow=0.0, Mach=0.0, area=area, Wc=Wc, Vsonic=-1.0, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0)
     return out._replace(Wc=Wc)
