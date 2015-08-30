@@ -3,7 +3,7 @@ from pycycle.cycle_component import CycleComponent
 class Duct(CycleComponent):
     '''The inlet takes in air at a given flow rate and mach number, and diffuses it down to a slower mach number and larger area'''
     def __init__(self):
-        super(CycleComponent, self).__init__()
+        super(Duct, self).__init__()
         self.add_param('dPqP', 0.0, desc='pressure differential as a fraction of incoming pressure')
         self.add_param('Q_dot', 0.0, desc='heat flow rate into (positive) or out of (negative) the air', units='Btu/s')
         self.add_param('MNexit_des', 0.6, desc='Mach number at the exit of the inlet')
