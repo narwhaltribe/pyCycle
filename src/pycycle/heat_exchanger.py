@@ -15,7 +15,6 @@ NTU (effectiveness) Method
 
 import math
 
-from pycycle.flowstation import FlowStationVar, FlowStation
 from pycycle.cycle_component import CycleComponent
 
 class HeatExchanger(CycleComponent): 
@@ -36,8 +35,8 @@ class HeatExchanger(CycleComponent):
         self.add_output('Qabsorbed', 0.0, desc='energy absorbed', units='hp')
         self.add_output('LMTD', 0.0, desc='logarithmic mean temperature difference')
         self.add_output('Qmax', 0.0, desc='theoretical maximum possible heat transfer', units='hp')
-        self.add_output('resid_Qmax', 0.0, desc='residual of max*effectiveness')
-        self.add_output('resid_e_balance', 0.0, desc='residual of energy balance')
+        self.add_output('resid_Qmax', 0.0, desc='residual of max*effectiveness', units='hp')
+        self.add_output('resid_e_balance', 0.0, desc='residual of energy balance', units='hp')
         self._add_flowstation('flow_out')
 
     def solve_nonlinear(self, params, unknowns, resids):
