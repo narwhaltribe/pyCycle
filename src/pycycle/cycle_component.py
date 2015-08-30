@@ -10,10 +10,12 @@ class CycleComponent(Component):
         self.add_param('design', False, desc='flag to indicate that the calculations are design conditions')
 
     def _clear_unknowns(self, name, unknowns):
+        '''Reset all of a FlowStation's unknowns to empty (-1.0).'''
         for var_name in ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc'):
             unknowns['%s:out:%s' % (name, var_name)] = -1.0
 
     def _solve_flow_vars(self, name, params, unknowns):
+        '''Solve a FlowStation's unknowns based on variables specified as parameters.'''
         def var(var_name):
             param_name = '%s:in:%s' % (name, var_name)
             output_name = '%s:out:%s' % (name, var_name)
@@ -51,6 +53,7 @@ class CycleComponent(Component):
                   'Wc': out.Wc})
     
     def _add_flowstation(self, name):
+        '''Add a variable tree representing a FlowStation. Parameters are stored as self.parameters['FLOWSTATION NAME:in:VARIABLE NAME'] and outputs are stored as self.unknowns['FLOWSTATION NAME:out:VARIABLE NAME'].'''
         def add_output(var_name, desc, units=None):
             self.add_output('%s:out:%s' % (name, var_name), -1.0, desc=desc, units=units)
         def add_duo(var_name, desc, units=None):

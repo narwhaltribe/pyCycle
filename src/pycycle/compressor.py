@@ -1,32 +1,8 @@
 import math 
 
-from openmdao.core.component import Component
-from openmdao.core.group import Group
-
 from pycycle import flowstation
 from pycycle.flowstation import GAS_CONSTANT
 from pycycle.cycle_component import CycleComponent
-
-class Compressor(Group):
-    '''Axial compressor performance calculations, including flowstations'''
-
-#    def __init__(self):
-#        super(Compressor, self).__init__()
-#        self.add('core', CompressorCore(), promotes=['PR_des', 'MNexit_des', 'eff_des', 'hub_to_tip', 'op_slope', 'PR', 'eff', 'eff_poly', 'pwr', 'tip_radius', 'hub_radius'])
-#        self.add('flow_in', FlowStation())
-#        self.add('flow_out', FlowStation())
-#        self.connect('flow_in.W', 'flow_out.W')
-#        self.connect('flow_in.Pt:out', 'core.flow_in:Pt')
-#        self.connect('flow_in.s:out', 'core.flow_in:s')
-#        self.connect('flow_in.ht:out', 'core.flow_in:ht')
-#        self.connect('flow_in.W', 'core.flow_in:W')
-#        self.connect('flow_in.Wc', 'core.flow_in:Wc')
-#        self.connect('flow_out.area:out', 'core.flow_out:area:in')
-#        self.connect('flow_out.s:out', 'core.flow_out:s')
-#        self.connect('core.flow_out:area:out', 'flow_out.area:in')
-#        self.connect('core.flow_out:Mach', 'flow_out.Mach:in')
-#        self.connect('core.flow_out:ht', 'flow_out.ht:in')
-#        self.connect('core.flow_out:Pt', 'flow_out.Pt:in')
 
 class Compressor(CycleComponent): 
     '''Basis for axial compressor performance calculations (without flowstations)''' 
@@ -67,7 +43,6 @@ class Compressor(CycleComponent):
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / params['eff_des'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
-#            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
             unknowns['flow_out:out:Mach'] = params['MNexit_des']
             self._solve_flow_vars('flow_out', params, unknowns)
             self._exit_area_des = unknowns['flow_out:out:area']
@@ -84,8 +59,6 @@ class Compressor(CycleComponent):
             unknowns['flow_out:out:Pt'] = Pt_out
             unknowns['flow_out:out:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
             self._solve_flow_vars('flow_out', params, unknowns)
-#            flowstation.set_total_hP(unknowns, self.Fl_O_data, ht_out, Pt_out, flowstation.SET_BY_NONE)
-#            flowstation.set_static(unknowns, self.Fl_O_data, flowstation.SET_BY_area)
             self._solve_flow_vars('flow_out', params, unknowns)
         C = flowstation.GAS_CONSTANT * math.log(unknowns['PR'])
         delta_s = unknowns['flow_out:out:s'] - unknowns['flow_in:out:s']
@@ -93,13 +66,3 @@ class Compressor(CycleComponent):
         unknowns['pwr'] = params['flow_in:in:W'] * (unknowns['flow_out:out:ht'] - unknowns['flow_in:out:ht']) * 1.4148532 # btu/s to hp
         unknowns['tip_radius'] = (unknowns['flow_out:out:area'] / math.pi / (1 - params['hub_to_tip'] ** 2)) ** 0.5
         unknowns['hub_radius'] = params['hub_to_tip'] * unknowns['tip_radius']
-
-if __name__ == '__main__': 
-    from openmdao.core.problem import Problem
-    from openmdao.core.group import Group
-    
-    g = Group()
-    g.add('comp', Compressor())
-    p = Problem(root=g)
-    p.setup()
-    p.run()
