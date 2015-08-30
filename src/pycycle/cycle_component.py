@@ -9,9 +9,17 @@ class CycleComponent(Component):
         super(CycleComponent, self).__init__()
         self.add_param('design', False, desc='flag to indicate that the calculations are design conditions')
 
+    @staticmethod
+    def copy_from(comp1, name1, comp2, name2):
+        '''Copies parameters from FlowStation 1 to FlowStation 2'''
+        ALL_PARAMS = ('is_super', 'ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR')
+        for var_name in ALL_PARAMS:
+            comp2.params['%s:in:%s' % (name2, var_name)] = comp1.params['%s:in:%s' % (name1, var_name)]
+
     def _clear_unknowns(self, name, unknowns):
         '''Reset all of a FlowStation's unknowns to empty (-1.0).'''
-        for var_name in ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc'):
+        ALL_OUTPUTS = ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc')
+        for var_name in ALL_OUTPUTS:
             unknowns['%s:out:%s' % (name, var_name)] = -1.0
 
     def _solve_flow_vars(self, name, params, unknowns):
@@ -54,9 +62,9 @@ class CycleComponent(Component):
     
     def _add_flowstation(self, name):
         '''Add a variable tree representing a FlowStation. Parameters are stored as self.parameters['FLOWSTATION NAME:in:VARIABLE NAME'] and outputs are stored as self.unknowns['FLOWSTATION NAME:out:VARIABLE NAME'].'''
-        def add_output(var_name, desc, units=None):
+        def add_output(var_name, desc, units=None, default_value=-1.0):
             self.add_output('%s:out:%s' % (name, var_name), -1.0, desc=desc, units=units)
-        def add_duo(var_name, desc, units=None):
+        def add_duo(var_name, desc, units=None, default_value=-1.0):
             self.add_param('%s:in:%s' % (name, var_name), -1.0, desc=desc, units=units)
             add_output(var_name, desc, units)
         self.add_param('%s:in:is_super' % name, False, desc='selects preference for supersonic versus subsonic solution when setting area')
@@ -69,7 +77,7 @@ class CycleComponent(Component):
         add_duo('Ps', 'static pressure', 'lbf/inch**2')
         add_duo('Mach', 'Mach number')
         add_duo('area', 'flow area', 'inch**2')
-        add_duo('W', 'weight flow', 'lbm/s')
+        add_duo('W', 'weight flow', 'lbm/s', 0.0)
         add_duo('FAR', 'fuel-to-air ratio')
         add_duo('WAR', 'water-to-air ratio')
         add_output('Vsonic', 'speed of sound', 'ft/s')

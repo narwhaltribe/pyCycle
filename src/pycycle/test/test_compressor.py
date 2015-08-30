@@ -8,15 +8,8 @@ from test_util import assert_rel_error
 from pycycle import flowstation
 
 class CompressorTestCase(unittest.TestCase):
-
-    def setUp(self): 
-        self.comp = Compressor()
-
-    def tearDown(self):
-        comp = None
-
     def test_compressor(self):
-        comp = self.comp
+        comp = Compressor()
         g = Group()
         g.add('comp', comp)
         p = Problem(root=g)
@@ -28,11 +21,7 @@ class CompressorTestCase(unittest.TestCase):
         comp.params['flow_in:in:W'] = 1.08
         comp.params['flow_in:in:Tt'] = 630.74523
         comp.params['flow_in:in:Pt'] = 0.0271945
-#        comp.solve_totals_TP('flow_in')
-#        flowstation.set_total_TP(comp.params, comp.Fl_I_data, 630.74523, 0.0271945, flowstation.SET_BY_NONE)
         comp.params['flow_in:in:Mach'] = 0.6
-#        comp.flow_in.solve_statics()
-#        flowstation.set_static(comp.params, comp.Fl_I_data, flowstation.SET_BY_Mach)
         comp.params['design'] = True
 
         p.run()

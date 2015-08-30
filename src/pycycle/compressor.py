@@ -25,7 +25,7 @@ class Compressor(CycleComponent):
 
     def _op_line(self, params, Wc):
         '''Relationship between compressor pressure ratio and mass flow''' 
-        b = 1 - params['op_slope'] # scaled PR and Wc at design are both 1
+        b = 1.0 - params['op_slope'] # scaled PR and Wc at design are both 1
         # assume a linear op line, with given slope
         norm_PR = params['op_slope'] * (Wc / self._Wc_des) + b 
         return norm_PR * params['PR_des']
@@ -39,7 +39,7 @@ class Compressor(CycleComponent):
             # Design Calculations
             Pt_out = unknowns['flow_in:out:Pt'] * params['PR_des']
             unknowns['PR'] = params['PR_des']
-            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out, W=0.0).ht
+            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / params['eff_des'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
@@ -53,7 +53,7 @@ class Compressor(CycleComponent):
             unknowns['eff'] = params['eff_des'] # TODO: add in eff variation with W
             # Operational Conditions
             Pt_out = unknowns['flow_in:out:Pt'] * unknowns['PR']
-            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out, W=0.0).ht
+            ideal_ht = flowstation.solve(s=unknowns['flow_in:out:s'], Pt=Pt_out).ht
             ht_out = (ideal_ht - unknowns['flow_in:out:ht']) / unknowns['eff'] + unknowns['flow_in:out:ht']
             unknowns['flow_out:out:ht'] = ht_out
             unknowns['flow_out:out:Pt'] = Pt_out
