@@ -48,7 +48,7 @@ class HeatExchanger(CycleComponent):
         try: 
             unknowns['LMTD'] = (params['T_hot_out'] - unknowns['flow_in:out:Tt'] + params['T_cold_out'] - params['T_cold_in']) / math.log((params['T_hot_out'] - params['T_cold_in']) / (unknowns['flow_in:out:Tt'] - params['T_cold_out']))
         except ZeroDivisionError: 
-            self.LMTD = 0.0
+            unknowns['LMTD'] = 0.0
         unknowns['resid_Qmax'] = unknowns['Qreleased'] - params['effectiveness'] * unknowns['Qmax']
         unknowns['resid_e_balance'] = unknowns['Qreleased'] - unknowns['Qabsorbed']
 
