@@ -1,57 +1,60 @@
-
 import unittest
 
-from openmdao.main.api import set_as_top
-from openmdao.util.testutil import assert_rel_error
+from openmdao.core.problem import Problem
+from openmdao.core.group import Group
 
-from pycycle import duct, flowstation
+from test_util import assert_rel_error
+from pycycle.duct import Duct
+from pycycle import flowstation
 
 class DuctTestCase(unittest.TestCase):
+    def test_duct(self): 
+        comp = Duct()
+        g = Group()
+        g.add('comp', comp)
+        p = Problem(root=g)
+        p.setup()
 
-    def test_start(self): 
-        comp = set_as_top(duct.Duct())
+        comp.params['dPqP'] = 0.0
+        comp.params['Q_dot'] = -237.8
+        comp.params['MNexit_des'] = 0.4
+        comp.params['flow_in:in:W'] = 1.080
+        comp.params['flow_in:in:Tt'] = 1424.01
+        comp.params['flow_in:in:Pt'] = 0.34
+        comp.params['flow_in:in:Mach'] = 0.4
+        comp.params['design'] = True
 
-        comp.dPqP = 0
-        comp.Q_dot = -237.8
-        comp.MNexit_des = .4
-
-        fs = flowstation.FlowStation()
-        fs.W = 1.080
-        fs.setTotalTP(1424.01, .34)
-        fs.Mach = .4
-
-        comp.Fl_I = fs
-
-        comp.design = True
-        comp.run()
+        p.run()
         
-        assert_rel_error(self,comp.Fl_O.W, 1.080, .005)
-        assert_rel_error(self,comp.Fl_O.Pt, .34, .005)
-        assert_rel_error(self,comp.Fl_O.Tt, 540.00, .005)
-        assert_rel_error(self,comp.Fl_O.rhos, .001566, .005)
-        assert_rel_error(self,comp.Fl_O.Mach, 0.4, .005)
-        assert_rel_error(self,comp.Fl_O.area, 221.4, .005)
+        TOL = 0.005
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 1.080, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.34, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 540.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], 0.001566, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 0.4, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 221.4, TOL)
 
-        #check off design 
-        comp.run()
+        # check off design 
+        comp.params['design'] = False
+        p.run()
         
-        assert_rel_error(self,comp.Fl_O.W, 1.080, .005)
-        assert_rel_error(self,comp.Fl_O.Pt, .34, .005)
-        assert_rel_error(self,comp.Fl_O.Tt, 540.00, .005)
-        assert_rel_error(self,comp.Fl_O.rhos, .001566, .005)
-        assert_rel_error(self,comp.Fl_O.Mach, 0.4, .005)
-        assert_rel_error(self,comp.Fl_O.area, 221.4, .005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 1.080, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.34, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 540.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], 0.001566, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 0.4, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 221.4, TOL)
 
-        #vary something
-        comp.dPqP = .1
-        comp.run()
+        # vary something
+        comp.params['dPqP'] = 0.1
+        p.run()
 
-        assert_rel_error(self,comp.Fl_O.W, 1.080, .005)
-        assert_rel_error(self,comp.Fl_O.Pt, .306, .005)
-        assert_rel_error(self,comp.Fl_O.Tt, 540.00, .005)
-        assert_rel_error(self,comp.Fl_O.rhos, .0013783, .005)
-        assert_rel_error(self,comp.Fl_O.Mach, 0.4572, .005)
-        assert_rel_error(self,comp.Fl_O.area, 221.4, .005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 1.080, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.306, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 540.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], 0.0013783, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 0.4572, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 221.4, TOL)
         
 if __name__ == "__main__":
     unittest.main()
