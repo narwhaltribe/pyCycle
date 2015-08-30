@@ -1,6 +1,6 @@
 **This code is under development and not yet suitable for general use.**
 
-### Guide to pyCycle for OpenMDAO 1.0
+# pyCycle for OpenMDAO 1.0
 
 **Files updated for OpenMDAO 1.0**
 
@@ -32,11 +32,11 @@ OpenMDAO no longer treats variable trees as distinct classes, so flow_station.py
 
 The `CycleComponent` class has been given new helper functions for initializing, reseting, and solving FlowStation variable trees. The easiest way to use FlowStations is to subclass `CycleComponent` and use `self._add_flowstation()` and `self._solve_flow_vars()`.
 
-### pyCycle
+# pyCycle
 
 This plugin provides basic thermodynamic cycle modeling tools for OpenMDAO. It's main feature is the inclusion of a FlowStation variable that provides access to isentropic flow relationships.
 
-# Pre-Reqs
+### Pre-Reqs
 
 
 ### OpenMDAO 
