@@ -2,6 +2,8 @@
 
 # pyCycle for OpenMDAO 1.0
 
+---
+
 **Files updated for OpenMDAO 1.0**
 
 - flowstation.py (`burn()`, `solve_statics_Ts_Ps_Mach`, and functions dealing with reactants still need to be implemented)
@@ -33,6 +35,8 @@ OpenMDAO no longer treats variable trees as distinct classes, so flow_station.py
 The `CycleComponent` class has been given new helper functions for initializing, reseting, and solving FlowStation variable trees. The easiest way to use FlowStations is to subclass `CycleComponent` and use `self._add_flowstation()` and `self._solve_flow_vars()`.
 
 The `HeatExchanger` component no longer includes state variables `resid_Qmax` and `resid_e_balance`. Instead, `T_cold_out` and `T_hot_out` have been made outputs and are solved by a newton solver within the component's `solve_nonlinear()` method.
+
+---
 
 # pyCycle
 
