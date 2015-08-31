@@ -2,9 +2,6 @@ import unittest
 
 from openmdao.core.problem import Problem
 from openmdao.core.group import Group
-from openmdao.components.constraint import ConstraintComp
-from openmdao.components import ParamComp
-from openmdao.drivers.scipy_optimizer import ScipyOptimizer
 
 from test_util import assert_rel_error
 from pycycle.heat_exchanger import HeatExchanger
