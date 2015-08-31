@@ -1,72 +1,47 @@
-
 import unittest
 
-from openmdao.main.api import set_as_top, Assembly
-from openmdao.util.testutil import assert_rel_error
-from openmdao.lib.drivers.api import BroydenSolver
+from openmdao.core.problem import Problem
+from openmdao.core.group import Group
+from openmdao.components.constraint import ConstraintComp
+from openmdao.components import ParamComp
+from openmdao.drivers.scipy_optimizer import ScipyOptimizer
 
-from pycycle import heat_exchanger, flowstation
-
-
-class HeatBalance(Assembly):
-
-    def configure(self):
-
-        hx = self.add('hx', heat_exchanger.HeatExchanger())
-        driver = self.add('driver',BroydenSolver())
-        driver.add_parameter('hx.T_hot_out',low=0.,high=1000.)
-        driver.add_parameter('hx.T_cold_out',low=0.,high=1000.)
-        driver.add_constraint('hx.residual_qmax=0')
-        driver.add_constraint('hx.residual_e_balance=0')
-
-        #hx.Wh = 0.49
-        #hx.Cp_hot = 1.006
-        #hx.T_hot_in = 791
-        fs = flowstation.FlowStation()
-        fs.setTotalTP(1423.8, 0.302712118187) #R, psi
-        fs.W = 1.0
-        hx.Fl_I = fs
-        hx.dpQp = 0.0
-
-        #initial guess
-        avg = ( hx.Fl_I.Tt + hx.T_cold_in )/2.
-        hx.T_cold_out = avg
-        hx.T_hot_out = avg  
-
-        driver.workflow.add(['hx'])
-
+from test_util import assert_rel_error
+from pycycle.heat_exchanger import HeatExchanger
+from pycycle import flowstation
 
 class HXTestCase(unittest.TestCase):
+    def test_heat_exchanger(self): 
+        comp = HeatExchanger()
+        g = Group()
+        g.add('comp', comp)
+        p = Problem(root=g)
+        p.setup()
 
-    def test_start(self): 
-        hb = set_as_top(HeatBalance())
-
-        hb.hx.design = True
-        hb.run()
+        comp.params['flow_in:in:Tt'] = 1423.8
+        comp.params['flow_in:in:Pt'] = 0.302712118187
+        comp.params['flow_in:in:W'] = 1.0
+        comp.params['dPqP'] = 0.0
+        comp.params['design'] = True
+        p.run()
         
-        assert_rel_error(self,hb.hx.Fl_O.Tt, 539.94, .005)
-        assert_rel_error(self,hb.hx.Qreleased, 327.22, .005)
-        assert_rel_error(self,hb.hx.Qabsorbed, 327.22, .005)
-        assert_rel_error(self,hb.hx.Qmax, 335.1, .005)
-        assert_rel_error(self,hb.hx.T_cold_in, 518.67, .005)
-        assert_rel_error(self,hb.hx.T_cold_out, 749.96, .005)
+        TOL = 0.005
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 539.94, TOL)
+        assert_rel_error(self, comp.unknowns['Qreleased'], 327.22, TOL)
+        assert_rel_error(self, comp.unknowns['Qabsorbed'], 327.22, TOL)
+        assert_rel_error(self, comp.unknowns['Qmax'], 335.1, TOL)
+        assert_rel_error(self, comp.unknowns['T_cold_out'], 749.96, TOL)
         
         #check off design 
-        #twiddle the values to make it run
-        hb.hx.T_cold_out *= .9
+        comp.params['design'] = False
         
-        hb.run()
-        
-        assert_rel_error(self,hb.hx.Fl_O.Tt, 539.94, .005)
-        assert_rel_error(self,hb.hx.Qreleased, 327.22, .005)
-        assert_rel_error(self,hb.hx.Qabsorbed, 327.22, .005)
-        assert_rel_error(self,hb.hx.Qmax, 335.1, .005)
-        assert_rel_error(self,hb.hx.T_cold_in, 518.67, .005)
-        assert_rel_error(self,hb.hx.T_cold_out, 749.96, .005)
+        p.run()
 
-
-        
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 539.94, TOL)
+        assert_rel_error(self, comp.unknowns['Qreleased'], 327.22, TOL)
+        assert_rel_error(self, comp.unknowns['Qabsorbed'], 327.22, TOL)
+        assert_rel_error(self, comp.unknowns['Qmax'], 335.1, TOL)
+        assert_rel_error(self, comp.unknowns['T_cold_out'], 749.96, TOL)
         
 if __name__ == "__main__":
     unittest.main()
-    
