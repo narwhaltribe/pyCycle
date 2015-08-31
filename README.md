@@ -8,19 +8,19 @@
 - cycle_component.py
 - compressor.py
 - duct.py
+- heat_exchanger.py
 - test/test_compressor.py
 - test/test_duct.py
 - test/test_flowstation.py (some functions still need to be implemented)
+- test/test_heat_exchanger.py
 - test/test_util.py (new in this fork)
 
 **Files not ready for OpenMDAO 1.0**
 
-- heat_exchanger.py
 - inlet.py
 - nozzle.py
 - splitter.py
 - start.py
-- test/test_heat_exchanger.py
 - test/test_inlet.py
 - test/test_nozzle.py
 - test/test_splitter.py
@@ -32,12 +32,13 @@ OpenMDAO no longer treats variable trees as distinct classes, so flow_station.py
 
 The `CycleComponent` class has been given new helper functions for initializing, reseting, and solving FlowStation variable trees. The easiest way to use FlowStations is to subclass `CycleComponent` and use `self._add_flowstation()` and `self._solve_flow_vars()`.
 
+The `HeatExchanger` component no longer includes state variables `resid_Qmax` and `resid_e_balance`. Instead, `T_cold_out` and `T_hot_out` have been made outputs and are solved by a newton solver within the component's `solve_nonlinear()` method.
+
 # pyCycle
 
 This plugin provides basic thermodynamic cycle modeling tools for OpenMDAO. It's main feature is the inclusion of a FlowStation variable that provides access to isentropic flow relationships.
 
 ### Pre-Reqs
-
 
 ### OpenMDAO 
 This is an OpenMDAO plugin, so we assume you have already installed a version of OpenMDAO. 
