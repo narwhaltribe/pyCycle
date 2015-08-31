@@ -11,19 +11,19 @@
 - compressor.py
 - duct.py
 - heat_exchanger.py
+- inlet.py
 - test/test_compressor.py
 - test/test_duct.py
 - test/test_flowstation.py (some functions still need to be implemented)
 - test/test_heat_exchanger.py
+- test/test_inlet.py
 - test/test_util.py (new in this fork)
 
 **Files not ready for OpenMDAO 1.0**
 
-- inlet.py
 - nozzle.py
 - splitter.py
 - start.py
-- test/test_inlet.py
 - test/test_nozzle.py
 - test/test_splitter.py
 - test/test_start.py
