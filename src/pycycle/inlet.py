@@ -1,45 +1,32 @@
-from openmdao.main.api import Component
-from openmdao.lib.datatypes.api import Float, VarTree
-
-from pycycle.flowstation import FlowStationVar, FlowStation
 from pycycle.cycle_component import CycleComponent
 
+class Inlet(CycleComponent):
+    '''The inlet takes in air at a given flow rate and mach number, and diffuses it down to a slower mach number and larger area'''
+    def __init__(self):
+        super(Inlet, self).__init__()
+        self.add_param('ram_recovery', 1.0, desc='fraction of the total pressure retained')
+        self.add_param('MNexit_des', 0.6, desc='Mach number at exit')
 
-class Inlet(CycleComponent): 
-    """The inlet takes in air at a given flow rate and mach number, and diffuses it down 
-    to a slower mach number and larger area"""
+        self.add_output('A_capture', 0.0, desc='area at entrance plane', units='inch**2')
+        self.add_output('F_ram', 0.0, desc='ram drag', units='lbf')
 
-    ram_recovery = Float(1.000, iotype="in", desc="fraction of the total pressure retained")
-    MNexit_des = Float(.6, iotype="in", desc="mach number at the exit of the inlet")
+        self._add_flowstation('flow_in')
+        self._add_flowstation('flow_out')
 
-    A_capture = Float(iotype="in", desc="area at the entrance plane to the inlet", units="inch**2")
-    Fl_I = FlowStationVar(iotype="in", desc="incoming air stream to compressor", copy=None)
-    Fl_O = FlowStationVar(iotype="out", desc="outgoing air stream from compressor", copy=None)
-    F_ram = Float(iotype="out", desc="ram drag from the inlet", units="lbf")
-
-
-    def execute(self): 
-        Fl_I = self.Fl_I
-        Fl_O = self.Fl_O 
-
-        Pt_out = Fl_I.Pt*self.ram_recovery
-        Fl_O.setTotalTP(Fl_I.Tt, Pt_out)
-        Fl_O.W = Fl_I.W
-
-        self.F_ram = Fl_I.W*Fl_I.Vflow/32.174 #lbf
-
-        if self.run_design: 
-            Fl_O.Mach = self.MNexit_des
-            self._exit_area_des = Fl_O.area
-            self.A_capture = Fl_I.area
+    def solve_nonlinear(self, params, unknowns, resids):
+        self._clear_unknowns('flow_in', unknowns)
+        self._clear_unknowns('flow_out', unknowns)
+        self._solve_flow_vars('flow_in', params, unknowns)
+        Pt_out = unknowns['flow_in:out:Pt'] * params['ram_recovery']
+        unknowns['flow_out:out:W'] = unknowns['flow_in:out:W']
+        unknowns['flow_out:out:Tt'] = unknowns['flow_in:out:Tt']
+        unknowns['flow_out:out:Pt'] = Pt_out
+        unknowns['F_ram'] = unknowns['flow_in:out:W'] * unknowns['flow_in:out:Vflow'] / 32.174 #lbf
+        if params['design']:
+            unknowns['flow_out:out:Mach'] = params['MNexit_des']
+            self._solve_flow_vars('flow_out', params, unknowns)
+            self._exit_area_des = unknowns['flow_out:out:area']
+            unknowns['A_capture'] = unknowns['flow_in:out:area']
         else: 
-            Fl_O.area = self._exit_area_des
-
-
-
-if __name__ == "__main__": 
-    from openmdao.main.api import set_as_top
-
-    c = set_as_top(Inlet())
-    c.run()
-
+            unknowns['flow_out:out:area'] = self._exit_area_des
+            self._solve_flow_vars('flow_out', params, unknowns)
