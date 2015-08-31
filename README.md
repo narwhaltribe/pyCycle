@@ -32,7 +32,7 @@
 
 OpenMDAO no longer treats variable trees as distinct classes, so flow_station.py has been restructured as a library of stateless functions that calculate thermodynamics values directly from parameters. Passing known parameters to `solve()` will be sufficient for nearly all applications. FlowStation variable trees must be stored manually by components.
 
-The `CycleComponent` class has been given new helper functions for initializing, reseting, and solving FlowStation variable trees. The easiest way to use FlowStations is to subclass `CycleComponent` and use `self._add_flowstation()` and `self._solve_flow_vars()`.
+The `CycleComponent` class has been given new helper functions for initializing, reseting, and solving FlowStation variable trees. The easiest way to use FlowStations is to subclass `CycleComponent` and use `self._add_flowstation()` and `self._solve_flow_vars()`. Variables are stored as `params['FLOWSTATION NAME:in:VARIABLE']` and `unknowns['FLOWSTATION NAME:out:VARIABLE']`. When a variable is set in both `params` and `unknowns`, `self._solve_flow_vars()` uses the value stored in `unknowns`. Thus, it is important to call `self._clear_unknowns()` for each FlowStation at the beginning of `self.solve_nonlinear()`, lest outputs from a previous run interfere with calculations.
 
 The `HeatExchanger` component no longer includes state variables `resid_Qmax` and `resid_e_balance`. Instead, `T_cold_out` and `T_hot_out` have been made outputs and are solved by a newton solver within the component's `solve_nonlinear()` method.
 
