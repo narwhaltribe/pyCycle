@@ -1,150 +1,101 @@
-from openmdao.main.api import Component
-from openmdao.lib.datatypes.api import Float, VarTree, Enum
-
-from pycycle.flowstation import FlowStationVar, FlowStation
+from pycycle import flowstation
 from pycycle.cycle_component import CycleComponent
 
-
-
 class Nozzle(CycleComponent): 
-    """Calculates the gross thrust for a convergent-divergent nozzle, assuming an ideally expanded
-    exit condition"""
+    '''Calculates the gross thrust for a convergent-divergent nozzle, assuming an ideally expanded exit condition'''
+    def __init__(self):
+        super(Nozzle, self).__init__()
+        self._add_flowstation('flow_ref')
+        self._add_flowstation('flow_in')
+        self._add_flowstation('flow_out')
+        self.add_param('dPqP', 0.0, desc='ratio of change in total pressure to incoming total pressure')
 
-    Fl_ref = FlowStationVar(iotype="in", desc="Flowstation with reference exit conditions", copy=None)
+        self.add_output('Athroat_dmd', 0.0, desc='demand throat area at operating conditions')
+        self.add_output('Athroat_des', 0.0, desc='throat area at design conditions')
+        self.add_output('Aexit_des', 0.0, desc='exit area at design conditions', units='inch**2')
+        self.add_output('PsSubsonic', 0.0, desc='back pressure corresponding to subsonic expansion', units='lbf/inch**2')
+        self.add_output('PsSupersonic', 0.0, desc='back pressure corresponding to supersonic compression', units='lbf/inch**2')
+        self.add_output('PsShock', 0.0, desc='back pressure corresponding to a normal shock at exit', units='lbf/inch**2')
+        self.add_output('Fg', 0.0, desc='gross thrust', units='lbf')
+        self.add_output('PR', 0.0, desc='ratio between total and static pressures at exit')
+        self.add_output('AR', 0.0, desc='ratio of exit area to throat area')
+        self.add_output('WqAexit', 0.0, desc='mass flow per unit area at operating conditions', units='lbm/(s*inch**2)')
+        self.add_output('WqAexit_dmd', 0.0, desc='demand mass flow per unit area at operating conditions', units='lbm/(s*inch**2)')
+        self.add_output('switchRegime', '', desc='operating regime') # 'UNCHOKED', 'NORMAL_SHOCK', 'UNDEREXPANDED', 'PERFECTLY_EXPANDED', or 'OVEREXPANDED'
 
-    Fl_I = FlowStationVar(iotype="in", desc="incoming air stream to nozzle", copy=None)
-    dPqP = Float(0, iotype="in", desc="ratio of change in total pressure to incomming total pressure")
-    
-    Fl_O = FlowStationVar(iotype="out", desc="outgoing air stream from nozzle", copy=None)
-    Athroat_dmd = Float(iotype="out", desc="demand throat area for the nozzle at the operating condition.")
-    Athroat_des = Float(iotype="out", desc="nozzle throat area at the design condition")
-    Aexit_des = Float(iotype="out", desc="nozzle exit area at the design condition")
-    PsSubsonic = Float(iotype="out", desc="back pressure corresponding to subsonic expansion")
-    PsSupersonic = Float(iotype="out", desc="back pressure corresponding to supersonic expansion")
-    PsShock = Float(iotype="out", desc="back pressure corresponding to a normal shock at the nozzle exit")
-    Fg = Float(iotype="out", desc="gross thrust from nozzle", units="lbf")
-    PR = Float(iotype="out", desc="ratio between total and static pressures at the nozzle exit")
-    AR = Float(iotype="out", desc="ratio of exit area to throat area")
+    @staticmethod
+    def shockPR(Mach, gam):
+        '''Calculates stagnation pressure ratio across a normal shock wave'''
+        rhoR = (gam + 1) / 2 * Mach ** 2 / (1 + (gam - 1) / 2 * Mach ** 2) # density ratio
+        PsR_recip = (gam + 1) / (2 * gam * Mach ** 2 - (gam - 1)) # reciprocal of static pressure ratio
+        return rhoR ** (gam / (gam - 1)) * PsR_recip ** (1 / (gam - 1))
 
-    #used for mass flow balance iterations
-    WqAexit = Float(iotype="out", desc="mass flow per unit area at operating condition", units="lbm/(s*inch**2)")
-    WqAexit_dmd = Float(iotype="out", desc="demand mass flow per unit area at operating condition", units="lbm/(s*inch**2)")
-
-    switchRegime = Enum(('UNCHOKED', 'NORMAL_SHOCK', 'UNDEREXPANDED', 'PERFECTLY_EXPANDED' ,'OVEREXPANDED'), 
-        iotype="out", desc="nozzle operating regime")
-
-
-    def shockPR(self, mach, gamma):
-        """Calculates stagnation pressure ratio across a normal shock wave"""
-        MN = mach
-        g = gamma
-
-        return (((g+1)/2*MN**2/(1+(g-1)/2*MN**2))**(g/(g-1)) * (1/ (2*g/(g+1)*MN**2 - (g-1)/(g+1)))**(1/(g-1)))
-
-        
-    def execute(self): 
-
-        Fl_I = self.Fl_I
-        Fl_O = self.Fl_O
-        Fl_ref = self.Fl_ref
-
-        fs_throat = FlowStation()
-        fs_exitIdeal = FlowStation()
-
-        fs_throat.W = Fl_I.W
-        Pt_out = (1-self.dPqP)*Fl_I.Pt
-        fs_throat.setTotalTP( Fl_I.Tt, Pt_out )
-        fs_throat.Mach = 1.0
-        self.Athroat_dmd = fs_throat.area
-
-        fs_exitIdeal.W = Fl_I.W
-        fs_exitIdeal.setTotalTP( Fl_I.Tt, Pt_out )
-        fs_exitIdeal.Ps = Fl_ref.Ps
-
-        Fl_O.W = Fl_I.W
-        Fl_O.setTotalTP( Fl_I.Tt, Pt_out )
-        Fl_O.Mach = fs_exitIdeal.Mach
-
-        if self.run_design: 
+    def solve_nonlinear(self, unknowns, params, resids): 
+        self._clear_unknowns('flow_ref', unknowns)
+        self._clear_unknowns('flow_in', unknowns)
+        self._clear_unknowns('flow_out', unknowns)
+        self._solve_flow_vars('flow_ref', params, unknowns)
+        self._solve_flow_vars('flow_in', params, unknowns)
+        Pt_out = (1.0 - params['dPqP']) * unknowns['flow_in:out:Pt']
+        flow_throat = flowstation.solve(Tt=unknowns['flow_in:out:Tt'], Pt=Pt_out, Mach=1.0, W=unknowns['flow_in:out:W'])
+        unknowns['Athroat_dmd'] = flow_throat.area
+        flow_exit_ideal = flowstation.solve(W=params['flow_out:in:W'], Tt=unknowns['flow_in:out:W'], Pt=Pt_out, Ps=unknowns['flow_ref:out:Ps'])
+        unknowns['flow_out:out:W'] = unknowns['flow_in:out:W']
+        if params['design']:
+            unknowns['flow_out:out:Tt'] = unknowns['flow_in:out:Tt']
+            unknowns['flow_out:out:Pt'] = Pt_out
+            unknowns['flow_out:out:Mach'] = flow_exit_ideal.Mach
+            self._solve_flow_vars('flow_out', params, unknowns)
             # Design Calculations at throat
-            self.Athroat_des = fs_throat.area
-
+            unknowns['Athroat_des'] = flow_throat.area
             # Design calculations at exit
-            self.Aexit_des = fs_exitIdeal.area
-            self.switchRegime = "PERFECTLY_EXPANDED"
+            unknowns['Aexit_des'] = flow_exit_ideal.area
+            unknowns['switchRegime'] = 'PERFECTLY_EXPANDED'
         else:
             # Find subsonic solution, curve 4
-            Fl_O.sub_or_super = "sub"
-            Fl_O.area = self.Aexit_des
-
-            MachSubsonic = Fl_O.Mach
-
-            if MachSubsonic > 1:
-                print "invalid nozzle subsonic solution"
-            PsSubsonic = Fl_O.Ps
-
+            flow_out_subsonic = flowstation.solve(W=unknowns['flow_out:out:W'], Tt=unknowns['flow_in:out:Tt'], Pt=unknowns['flow_in:out:Pt'], is_super=False, area=unknowns['Aexit_des'])
+            if flow_out_subsonic.Mach > 1.0:
+                raise Exception('invalid nozzle subsonic solution')
             # Find supersonic solution, curve 5
-            Fl_O.sub_or_super = "super"
-            Fl_O.area = self.Aexit_des
-            MachSupersonic = Fl_O.Mach
-            PsSupersonic = Fl_O.Ps
-
+            flow_out_supersonic = flowstation.solve(W=unknowns['flow_out:out:W'], Tt=unknowns['flow_in:out:Tt'], Pt=unknowns['flow_in:out:Pt'], is_super=True, area=unknowns['Aexit_des'])
             # normal shock at nozzle exit, curve c
-            Fl_O.sub_or_super = "sub"
-            Msuper = MachSupersonic
-            PtExit = self.shockPR( Msuper, fs_throat.gams ) * fs_throat.Pt
-            Fl_O.setTotalTP( fs_throat.Tt, PtExit )
-            Fl_O.area = self.Aexit_des      
-            PsShock = Fl_O.Ps
-
+            Pt_exit = Nozzle.shockPR(flow_out_supersonic.Mach, flow_throat.gams) * flow_throat.Pt
+            flow_out_shock = flowstation.solve(W=unknowns['flow_out:out:W'], Tt=flow_throat.Tt, Pt=Pt_exit, is_super=False, area=unknowns['Aexit_des'])
             # find correct operating regime
             # curves 1 to 4
-            if Fl_ref.Ps >= PsSubsonic:
-                self.switchRegime = "UNCHOKED"
-                
-                fs_throat.sub_or_super = "sub"
-                Fl_O.sub_or_super = "sub"
-                fs_throat.area = self.Athroat_des
-                Fl_O.setTotalTP( fs_throat.Tt, fs_throat.Pt )
-                Fl_O.area = self.Aexit_des
-
+            if unknowns['flow_ref:out:Ps'] >= flow_out_subsonic.Ps:
+                unknowns['switchRegime'] = 'UNCHOKED'
+                flow_throat = flowstation.solve(Tt=unknowns['flow_in:out:Tt'], Pt=Pt_out, W=unknowns['flow_in:out:W'], area=unknowns['Athroat_des'])
+                unknowns['flow_out:out:Tt'] = flow_throat.Tt
+                unknowns['flow_out:out:Pt'] = flow_throat.Pt
+                unknowns['flow_out:out:area'] = unknowns['Aexit_des']
             # between curves 4 and c
-            elif Fl_ref.Ps < PsSubsonic and Fl_ref.Ps >= PsShock:
-                self.switchRegime = "NORMAL_SHOCK"
-                Fl_O.sub_or_super = "sub"
-                Fl_O.Ps = Fl_ref.Ps
-
-
+            elif unknowns['flow_ref:out:Ps'] >= flow_out_shock.Ps:
+                unknowns['switchRegime'] = 'NORMAL_SHOCK'
+                unknowns['flow_out:out:Ps'] = unknowns['flow_ref:out:Ps']
             # between curves c and 5
-            elif Fl_ref.Ps < PsShock and Fl_ref.Ps > PsSupersonic:
-                self.switchRegime = "OVEREXPANDED"
-                Fl_O.sub_or_super = "super"
-                Fl_O.setTotalTP( fs_throat.Tt, fs_throat.Pt )
-                Fl_O.area = self.Aexit_des
-
+            elif unknowns['flow_ref:out:Ps'] > flow_out_supersonic.Ps:
+                unknowns['switchRegime'] = 'OVEREXPANDED'
+                unknowns['flow_out:out:is_super'] = True
+                unknowns['flow_out:out:Tt'] = flow_throat.Tt
+                unknowns['flow_out:out:Pt'] = flow_throat.Pt
+                unknowns['flow_out:out:area'] = unknowns['Aexit_des']
             # between curves 5 and e
-            elif Fl_ref.Ps <= PsSupersonic:
-                self.switchRegime = "UNDEREXPANDED"
-                Fl_O.sub_or_super = "super"
-                Fl_O.setTotalTP( fs_throat.Tt, fs_throat.Pt )
-                Fl_O.area = self.Aexit_des
-            if abs(Fl_ref.Ps - PsSupersonic)/Fl_ref.Ps < .001: 
-                self.switchRegime = "PERFECTLY_EXPANDED"
-
-        self.Fg = Fl_O.W*Fl_O.Vflow/32.174 + Fl_O.area*(Fl_O.Ps-Fl_ref.Ps)
-        self.PR = fs_throat.Pt/Fl_O.Ps
-        self.AR = Fl_O.area/fs_throat.area
-        
-        self.WqAexit = Fl_I.W/self.Athroat_des
-        self.WqAexit_dmd = Fl_I.W/self.Athroat_dmd
-
-        if self.switchRegime == "UNCHOKED": 
-            self.WqAexit = Fl_I.W/Fl_ref.Ps
-            self.WqAexit_dmd = Fl_I.W/Fl_O.Ps
-
-                
-if __name__ == "__main__": 
-    from openmdao.main.api import set_as_top
-
-    c = set_as_top(Nozzle())
-    c.run()
+            else:
+                unknowns['switchRegime'] = 'UNDEREXPANDED'
+                unknowns['flow_out:out:is_super'] = True
+                unknowns['flow_out:out:Tt'] = flow_throat.Tt
+                unknowns['flow_out:out:Pt'] = flow_throat.Pt
+                unknowns['flow_out:out:area'] = unknowns['Aexit_des']
+            self._solve_flow_vars('flow_out', params, unknowns)
+            if abs(unknowns['flow_ref:out:Ps'] - flow_out_supersonic.Ps) / unknowns['flow_ref:out:Ps'] < 0.001:
+                unknowns['switchRegime'] = 'PERFECTLY_EXPANDED'
+        unknowns['Fg'] = unknowns['flow_out:out:W'] * unknowns['flow_out:out:Vflow'] / 32.174 + unknowns['flow_out:out:area'] * (unknowns['flow_out:out:Ps'] - unknowns['flow_ref:out:Ps'])
+        unknowns['PR'] = flow_throat.Pt / unknowns['flow_out:out:Ps']
+        unknowns['AR'] = unknowns['flow_out:out:area'] / flow_throat.area
+        if unknowns['switchRegime'] == 'UNCHOKED':
+            unknowns['WqAexit'] = unknowns['flow_in:out:W'] / unknowns['flow_ref:out:Ps']
+            unknowns['WqAexit_dmd'] = unknowns['flow_in:out:W'] / unknowns['flow_out:out:Ps']
+        else:
+            unknowns['WqAexit'] = unknowns['flow_in:out:W'] / unknowns['Athroat_des']
+            unknowns['WqAexit_dmd'] = unknowns['flow_in:out:W'] / unknowns['Athroat_dmd']
