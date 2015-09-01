@@ -3,6 +3,9 @@ import math
 from openmdao.core.component import Component
 from pycycle import flowstation
 
+ALL_PARAMS = ('is_super', 'ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR')
+ALL_OUTPUTS = ('is_super', 'ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc')
+
 class CycleComponent(Component): 
 
     def __init__(self): 
@@ -12,14 +15,12 @@ class CycleComponent(Component):
     @staticmethod
     def copy_from(comp1, name1, comp2, name2):
         '''Copies parameters from FlowStation 1 to FlowStation 2'''
-        ALL_PARAMS = ('is_super', 'ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR')
         for var_name in ALL_PARAMS:
             comp2.params['%s:in:%s' % (name2, var_name)] = comp1.params['%s:in:%s' % (name1, var_name)]
 
-    def _clear_unknowns(self, name, unknowns):
+    def _clear_unknowns(self, name, unknowns, var_names=ALL_OUTPUTS):
         '''Reset all of a FlowStation's unknowns to empty (-1.0).'''
-        ALL_OUTPUTS = ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc')
-        for var_name in ALL_OUTPUTS:
+        for var_name in var_names:
             unknowns['%s:out:%s' % (name, var_name)] = -1.0
 
     def _solve_flow_vars(self, name, params, unknowns):
@@ -58,7 +59,8 @@ class CycleComponent(Component):
                   'gamt': out.gamt,
                   'Cp': out.Cp,
                   'Cv': out.Cv,
-                  'Wc': out.Wc})
+                  'Wc': out.Wc,
+                  'is_super', var('is_super')})
     
     def _add_flowstation(self, name):
         '''Add a variable tree representing a FlowStation. Parameters are stored as self.parameters['FLOWSTATION NAME:in:VARIABLE NAME'] and outputs are stored as self.unknowns['FLOWSTATION NAME:out:VARIABLE NAME'].'''
@@ -67,7 +69,7 @@ class CycleComponent(Component):
         def add_duo(var_name, desc, units=None, default_value=-1.0):
             self.add_param('%s:in:%s' % (name, var_name), -1.0, desc=desc, units=units)
             add_output(var_name, desc, units)
-        self.add_param('%s:in:is_super' % name, False, desc='selects preference for supersonic versus subsonic solution when setting area')
+        add_duo('is_super', 'selects preference for supersonic versus subsonic solution when setting area', default_value=False)
         add_duo('ht', 'total enthalpy', 'Btu/lbm')
         add_duo('Tt', 'total temperature', 'degR')
         add_duo('Pt', 'total pressure', 'lbf/inch**2')
