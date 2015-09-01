@@ -8,6 +8,7 @@ class Nozzle(CycleComponent):
         self._add_flowstation('flow_ref')
         self._add_flowstation('flow_in')
         self._add_flowstation('flow_out')
+
         self.add_param('dPqP', 0.0, desc='ratio of change in total pressure to incoming total pressure')
 
         self.add_output('Athroat_dmd', 0.0, desc='demand throat area at operating conditions')
@@ -36,9 +37,9 @@ class Nozzle(CycleComponent):
         Pt_out = (1.0 - params['dPqP']) * unknowns['flow_in:out:Pt']
         flow_throat = flowstation.solve(Tt=unknowns['flow_in:out:Tt'], Pt=Pt_out, Mach=1.0, W=unknowns['flow_in:out:W'])
         unknowns['Athroat_dmd'] = flow_throat.area
-        flow_exit_ideal = flowstation.solve(W=params['flow_out:in:W'], Tt=unknowns['flow_in:out:W'], Pt=Pt_out, Ps=unknowns['flow_ref:out:Ps'])
         unknowns['flow_out:out:W'] = unknowns['flow_in:out:W']
         if params['design']:
+            flow_exit_ideal = flowstation.solve(W=params['flow_out:in:W'], Tt=unknowns['flow_in:out:W'], Pt=Pt_out, Ps=unknowns['flow_ref:out:Ps'])
             unknowns['flow_out:out:Tt'] = unknowns['flow_in:out:Tt']
             unknowns['flow_out:out:Pt'] = Pt_out
             unknowns['flow_out:out:Mach'] = flow_exit_ideal.Mach
