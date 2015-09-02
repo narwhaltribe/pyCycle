@@ -157,15 +157,14 @@ def _find_limits(f, min_low, max_high, x_guess=None, accuracy=1e-4):
     '''Find the extreme values of x for which f does not raise an exception'''
     x_guess = (min_low + max_high) / 2.0 if x_guess is None else x_guess
     def find_limit(inside, outside):
-        while True:
+        while abs(inside - outside) > accuracy:
             x = (inside + outside) / 2.0
             try:
                 f(x)
                 inside = x
             except:
                 outside = x
-            if abs(inside - outside) <= accuracy:
-                return inside
+        return inside
     return find_limit(x_guess, min_low), find_limit(x_guess, max_high)
 
 def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
