@@ -60,7 +60,7 @@ class CycleComponent(Component):
                   'Cp': out.Cp,
                   'Cv': out.Cv,
                   'Wc': out.Wc,
-                  'is_super', var('is_super')})
+                  'is_super': var('is_super')})
     
     def _add_flowstation(self, name):
         '''Add a variable tree representing a FlowStation. Parameters are stored as self.parameters['FLOWSTATION NAME:in:VARIABLE NAME'] and outputs are stored as self.unknowns['FLOWSTATION NAME:out:VARIABLE NAME'].'''
