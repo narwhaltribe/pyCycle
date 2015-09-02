@@ -155,8 +155,7 @@ def solve_statics_Ps(Ps, s, Tt, ht, W):
 
 def _find_limits(f, min_low, max_high, x_guess=None, accuracy=1e-4):
     '''Find the extreme values of x for which f does not raise an exception'''
-    if x_guess is None:
-        x_guess = (min_low + max_high) / 2.0
+    x_guess = (min_low + max_high) / 2.0 if x_guess is None else x_guess
     def find_limit(inside, outside):
         while True:
             x = (inside + outside) / 2.0
