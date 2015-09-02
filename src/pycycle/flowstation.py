@@ -143,11 +143,7 @@ def solve_statics_Ps(Ps, s, Tt, ht, W):
     rhos = flow.density() * 0.0624
     gams = flow.cp_mass() / flow.cv_mass()
     hs = flow.enthalpy_mass() * 0.0004302099943161011
-    try:
-        Vflow = math.sqrt((778.169 * 32.1740 * 2 * (ht - hs))) # 778.169 lbf / J; 32.1740 ft/s^2 = g
-    except:
-        print 'ht', ht, 'hs', hs
-        raise Exception
+    Vflow = math.sqrt((778.169 * 32.1740 * 2 * (ht - hs))) # 778.169 lbf / J; 32.1740 ft/s^2 = g
     Vsonic = math.sqrt(gams * GasConstant * flow.temperature() / flow.meanMolecularWeight()) * 3.28084
     Mach = Vflow / Vsonic
     area = W / (rhos * Vflow) * 144.0
