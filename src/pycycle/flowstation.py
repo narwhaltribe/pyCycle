@@ -1,7 +1,7 @@
 from os.path import dirname, join
 from collections import namedtuple
 from Cantera import *
-from scipy.optimize import newton, minimize, bisect, ridder, brentq
+from scipy.optimize import newton, brentq
 
 import pycycle
 
@@ -162,7 +162,6 @@ def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
     def f(Ps):
         out[0] = solve_statics_Ps(Ps=Ps, s=s, Tt=Tt, ht=ht, W=W)
         return out[0].area - area
-#    minimize(f, guess, method='TNC', bounds=((statics_M1.Ps, Pt),))
     brentq(f, statics_M1.Ps + 1e-4, Pt - 1e-4)
     # if you want the supersonic one, just keep going with a little lower initial guess    
     if is_super:
@@ -170,8 +169,6 @@ def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
         Mach_guess = 1.0 / out[0].Mach
         Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach_guess ** 2) ** (gamt / (1.0 - gamt))
         newton(f, Ps_guess)
-#        brentq(f, 1e-4, statics_M1.Ps - 1e-4)
-#        minimize(f, Ps_guess, method='L-BFGS-B', bounds=((0, statics_M1.Ps),))
     return out[0]
 
 def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rhot=-1.0, Ts=-1.0, ht=-1.0, s=-1.0, W=0.0, is_super=False):
