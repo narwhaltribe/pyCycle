@@ -1,59 +1,33 @@
-
 import unittest
 
-from openmdao.main.api import set_as_top, Assembly
-from openmdao.util.testutil import assert_rel_error
+from openmdao.core.problem import Problem
+from openmdao.core.group import Group
 
-
-from pycycle.api import FlowStart, FlowStation
-
-
-class TestA(Assembly): 
-
-    def configure(self):
-        comp = self.add('comp', FlowStart())
-
-        comp.W = 3.488
-        comp.Pt = 0.0272
-        comp.Tt = 630.75
-        comp.Mach = 1.0
-
-        self.driver.workflow.add('comp')
-
-
+from pycycle.start import FlowStart
+from test_util import assert_rel_error
 
 class StartTestCase(unittest.TestCase):
-    def test_start_in_assembly(self): 
-
-        a = set_as_top(TestA())
-        a.run()
-
-        assert_rel_error(self,a.comp.Fl_O.W, 3.488,.005)
-        assert_rel_error(self,a.comp.Fl_O.Pt, .0272, .005)
-        assert_rel_error(self,a.comp.Fl_O.Tt, 630.75, .005)
-        assert_rel_error(self,a.comp.Fl_O.rhos, .000074, .005)
-        assert_rel_error(self,a.comp.Fl_O.Mach, 1.00,.005)
-        assert_rel_error(self,a.comp.Fl_O.area, 6060.6, .005)
-
-
     def test_start(self): 
-        comp = set_as_top(FlowStart())
+        comp = FlowStart()
+        g = Group()
+        g.add('comp', comp)
+        p = Problem(root=g)
+        p.setup()
 
-        comp.W = 3.488
-        comp.Pt = 0.0272
-        comp.Tt = 630.75
-        comp.Mach = 1.0
+        comp.params['W'] = 3.488
+        comp.params['Pt'] = 0.0272
+        comp.params['Tt'] = 630.75
+        comp.params['Mach'] = 1.0
 
-        comp.run()
+        p.run()
 
-        assert_rel_error(self,comp.Fl_O.W, 3.488,.005)
-        assert_rel_error(self,comp.Fl_O.Pt, .0272, .005)
-        assert_rel_error(self,comp.Fl_O.Tt, 630.75, .005)
-        assert_rel_error(self,comp.Fl_O.rhos, .000074, .005)
-        assert_rel_error(self,comp.Fl_O.Mach, 1.00,.005)
-        assert_rel_error(self,comp.Fl_O.area, 6060.6, .005)
-
-        
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 3.488,.005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], .0272, .005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 630.75, .005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], .000074, .005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 1.00,.005)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 6060.6, .005)
+ 
 if __name__ == "__main__":
     unittest.main()
     
