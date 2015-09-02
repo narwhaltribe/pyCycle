@@ -1,48 +1,39 @@
-from openmdao.main.api import Component
-from openmdao.lib.datatypes.api import Float, VarTree
-
-from pycycle.flowstation import FlowStation, FlowStationVar
+from pycycle import flowstation
 from pycycle.cycle_component import CycleComponent
 
+class FlowStart(CycleComponent):
+    '''Flow initialization'''
+    def __init__(self):
+        super(FlowStart, self).__init__()
+        self.add_param('W', 1.0, desc='mass flow rate', units='lbm/s')
+        self.add_param('Pt', 14.7, desc='total pressure', units='psi')
+        self.add_param('Tt', 518.0, desc='total temperature', units='degR') # TODO standardize units across files
+        self.add_param('Mach', 0.1, desc='Mach number')
+        self.add_output('area_des', 0.0, desc='flow area at design conditions', units='inch**2')
+        self._add_flowstation('flow_out') # outgoing flow at specified conditions
 
-class FlowStart(CycleComponent): 
-    """Flow initialization""" 
+    def solve_nonlinear(self, params, unknowns, resids):
+        self._clear_unknowns('flow_out', unknowns)
+        unknowns['flow_out:out:Tt'] = params['Tt']
+        unknowns['flow_out:out:Pt'] = params['Pt']
+        unknowns['flow_out:out:W'] = params['W']
+        unknowns['flow_out:out:Mach'] = params['Mach']
+        self._solve_flow_vars('flow_out', params, unknowns)
+        if params['design']: 
+            unknowns['area_des'] = unknowns['flow_out:out:area']
 
-    W = Float(1, iotype="in", desc="mass flow rate", units="lbm/s")
-    Pt = Float(14.7, iotype="in", desc="total pressure", units="psi")
-    Tt = Float(518, iotype="in", desc="total temperature", units="degR")
-    Mach = Float(.1, iotype="in", desc="Mach Number")
+class FlowStartStatic(CycleComponent):
+    def __init__(self):
+        super(FlowStartStatic, self).__init__()
+        self.add_param('W', 1.0, desc='mass flow rate', units='lbm/s')
+        self.add_param('Ps', 14.7, desc='static pressure', units='psi')
+        self.add_param('Ts', 518.0, desc='static temperature', units='degR')
+        self.add_param('Mach', 0.1, desc='Mach number')
+        self._add_flowstation('flow_out') # outgoing flow at specified conditions
 
-    area_des = Float(iotype="out", desc="flow area at the design condition")
-    Fl_O = FlowStationVar(iotype="out", desc="outgoing flow at the specified conditions", copy=None)
-
-
-    def execute(self): 
-        Fl_O = self.Fl_O
-        Fl_O.setTotalTP(self.Tt, self.Pt)
-        Fl_O.W = self.W
-        Fl_O.Mach = self.Mach
-
-        if self.run_design: 
-            self.area_des = Fl_O.area
-
-class FlowStartStatic(CycleComponent): 
-
-    W = Float(1, iotype="in", desc="mass flow rate", units="lbm/s")
-    Ps = Float(14.7, iotype="in", desc="total pressure", units="psi")
-    Ts = Float(518, iotype="in", desc="total temperature", units="degR")
-    Mach = Float(.1, iotype="in", desc="Mach Number")
-
-    Fl_O = FlowStationVar(iotype="out", desc="outgoing flow at the specified conditions", copy=None)
-
-
-    def execute(self): 
-        self.Fl_O.setStaticTsPsMN(self.Ts, self.Ps, self.Mach)
-        self.Fl_O.W = self.W
-        self.Fl_O.Mach = self.Mach
-
-
-
-
-
-
+    def solve_nonlinear(self, params, unknowns, resids):
+        unknowns['flow_out:out:Ts'] = params['Ts']
+        unknowns['flow_out:out:Ps'] = params['Ps']
+        unknowns['flow_out:out:Mach'] = params['Mach']
+        unknowns['flow_out:out:W'] = params['W']
+        self._solve_flow_vars('flow_out', params, unknowns) # TODO solve by TsPsMN
