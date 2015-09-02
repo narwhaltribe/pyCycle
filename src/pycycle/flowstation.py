@@ -1,7 +1,7 @@
 from os.path import dirname, join
 from collections import namedtuple
 from Cantera import *
-from scipy.optimize import newton, brentq
+from scipy.optimize import newton, brentq, bisect
 
 import pycycle
 
@@ -153,6 +153,37 @@ def solve_statics_Ps(Ps, s, Tt, ht, W):
     area = W / (rhos * Vflow) * 144.0
     return Output(Ps=Ps, Ts=Ts, rhos=rhos, gams=gams, hs=hs, Vflow=Vflow, Vsonic=Vsonic, Mach=Mach, area=area, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0, Wc=-1.0)
 
+def _find_limits(f, min_low, max_high, x_guess=None, accuracy=1e-4):
+    '''Find the extreme values of x for which f does not raise an exception'''
+    if x_guess is None:
+        x_guess = (min_low + max_high) / 2.0
+    # find low limit
+    max_x = x_guess
+    min_x = min_low
+    while True:
+        x = (min_x + max_x) / 2.0
+        try:
+            f(x)
+            max_x = x
+        except:
+            min_x = x
+        if abs(max_x - min_x) <= accuracy:
+            low = max_x
+            break
+    min_x = x_guess
+    max_x = max_high
+    while True:
+        x = (min_x + max_x) / 2.0
+        try:
+            f(x)
+            min_x = x
+        except:
+            max_x = x
+        if abs(max_x - min_x) <= accuracy:
+            high = min_x
+            break
+    return low, high
+
 def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
     '''Calculate the statics based on area'''
     statics_M1 = solve_statics_Mach(Mach=1.0, Pt=Pt, gamt=gamt, ht=ht, s=s, Tt=Tt, W=W)
@@ -168,7 +199,8 @@ def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
         # jsg: wild guess of 1/M_subsonic
         Mach_guess = 1.0 / out[0].Mach
         Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach_guess ** 2) ** (gamt / (1.0 - gamt))
-        newton(f, Ps_guess)
+        Ps_min, Ps_max = _find_limits(f, 0.0, statics_M1.Ps, Ps_guess)
+        brentq(f, Ps_min, Ps_max)
     return out[0]
 
 def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rhot=-1.0, Ts=-1.0, ht=-1.0, s=-1.0, W=0.0, is_super=False):
