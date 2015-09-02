@@ -13,6 +13,13 @@ class CycleComponent(Component):
         self.add_param('design', False, desc='flag to indicate that the calculations are design conditions')
 
     @staticmethod
+    def connect_flows(group, flow1, flow2):
+        '''Connects flow variable trees'''
+        assert set(ALL_PARAMS + ALL_OUTPUTS) == set(ALL_PARAMS)
+        for var_name in ALL_PARAMS:
+            group.connect('%s:out:%s' % (flow1, var_name), '%s:in:%s' % (flow2, var_name))
+
+    @staticmethod
     def copy_from(comp1, name1, comp2, name2):
         '''Copies parameters from FlowStation 1 to FlowStation 2'''
         for var_name in ALL_PARAMS:
