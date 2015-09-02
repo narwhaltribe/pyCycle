@@ -189,7 +189,6 @@ def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rh
 
 def solve_Ts_Ps_MN(Ts, Ps, Mach, gamt=0.0, s=-1.0, W=0.0, is_super=False):
     '''Set variables based on Ts, Ps, and MN'''
-    # UPDGRADED TO USE LOOPS
     # do this twice beacause gamt changes
     for n in range(2):
         Tt = Ts * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2)
