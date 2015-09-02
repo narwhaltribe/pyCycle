@@ -14,7 +14,7 @@ class CycleComponent(Component):
 
     @staticmethod
     def connect_flows(group, flow1, flow2):
-        '''Connects flow variable trees'''
+        '''Connects flow variable trees. Both flow1 and flow2 are strings (e.g. 'component.flow_name')'''
         assert set(ALL_PARAMS + ALL_OUTPUTS) == set(ALL_PARAMS)
         for var_name in ALL_PARAMS:
             group.connect('%s:out:%s' % (flow1, var_name), '%s:in:%s' % (flow2, var_name))
