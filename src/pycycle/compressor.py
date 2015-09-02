@@ -59,7 +59,6 @@ class Compressor(CycleComponent):
             unknowns['flow_out:out:Pt'] = Pt_out
             unknowns['flow_out:out:area'] = self._exit_area_des # causes Mach to be calculated based on fixed area
             self._solve_flow_vars('flow_out', params, unknowns)
-            self._solve_flow_vars('flow_out', params, unknowns)
         C = flowstation.GAS_CONSTANT * math.log(unknowns['PR'])
         delta_s = unknowns['flow_out:out:s'] - unknowns['flow_in:out:s']
         unknowns['eff_poly'] = C / (C + delta_s)

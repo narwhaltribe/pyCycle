@@ -3,11 +3,10 @@ import math
 from openmdao.core.component import Component
 from pycycle import flowstation
 
-ALL_PARAMS = ('is_super', 'ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR')
-ALL_OUTPUTS = ('is_super', 'ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc')
+ALL_PARAMS = ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'is_super')
+ALL_OUTPUTS = ('ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'W', 'FAR', 'WAR', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc', 'is_super')
 
 class CycleComponent(Component): 
-
     def __init__(self): 
         super(CycleComponent, self).__init__()
         self.add_param('design', False, desc='flag to indicate that the calculations are design conditions')
@@ -15,7 +14,7 @@ class CycleComponent(Component):
     @staticmethod
     def connect_flows(group, flow1, flow2):
         '''Connects flow variable trees. Both flow1 and flow2 are strings (e.g. 'component.flow_name')'''
-        assert set(ALL_PARAMS + ALL_OUTPUTS) == set(ALL_PARAMS)
+        assert len(set(ALL_PARAMS) & set(ALL_OUTPUTS)) == len(ALL_PARAMS)
         for var_name in ALL_PARAMS:
             group.connect('%s:out:%s' % (flow1, var_name), '%s:in:%s' % (flow2, var_name))
 
@@ -28,7 +27,8 @@ class CycleComponent(Component):
     def _clear_unknowns(self, name, unknowns, var_names=ALL_OUTPUTS):
         '''Reset all of a FlowStation's unknowns to empty (-1.0).'''
         for var_name in var_names:
-            unknowns['%s:out:%s' % (name, var_name)] = -1.0
+            v = False if var_name == 'is_super' else -1.0
+            unknowns['%s:out:%s' % (name, var_name)] = v
 
     def _solve_flow_vars(self, name, params, unknowns):
         '''Solve a FlowStation's unknowns based on variables specified as parameters.'''
@@ -72,11 +72,10 @@ class CycleComponent(Component):
     def _add_flowstation(self, name):
         '''Add a variable tree representing a FlowStation. Parameters are stored as self.parameters['FLOWSTATION NAME:in:VARIABLE NAME'] and outputs are stored as self.unknowns['FLOWSTATION NAME:out:VARIABLE NAME'].'''
         def add_output(var_name, desc, units=None, default_value=-1.0):
-            self.add_output('%s:out:%s' % (name, var_name), -1.0, desc=desc, units=units)
+            self.add_output('%s:out:%s' % (name, var_name), default_value, desc=desc, units=units)
         def add_duo(var_name, desc, units=None, default_value=-1.0):
-            self.add_param('%s:in:%s' % (name, var_name), -1.0, desc=desc, units=units)
-            add_output(var_name, desc, units)
-        add_duo('is_super', 'selects preference for supersonic versus subsonic solution when setting area', default_value=False)
+            self.add_param('%s:in:%s' % (name, var_name), default_value, desc=desc, units=units)
+            add_output(var_name, desc, units, default_value)
         add_duo('ht', 'total enthalpy', 'Btu/lbm')
         add_duo('Tt', 'total temperature', 'degR')
         add_duo('Pt', 'total pressure', 'lbf/inch**2')
@@ -89,6 +88,7 @@ class CycleComponent(Component):
         add_duo('W', 'weight flow', 'lbm/s', 0.0)
         add_duo('FAR', 'fuel-to-air ratio')
         add_duo('WAR', 'water-to-air ratio')
+        add_duo('is_super', 'selects preference for supersonic versus subsonic solution when setting area', default_value=False)
         add_output('Vsonic', 'speed of sound', 'ft/s')
         add_output('Vflow', 'velocity', 'ft/s')
         add_output('rhos', 'static density', 'lbm/ft**3')
