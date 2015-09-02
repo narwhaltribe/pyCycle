@@ -6,7 +6,7 @@
 
 **Files updated for OpenMDAO 1.0**
 
-- flowstation.py (`burn()`, `solve_statics_Ts_Ps_Mach`, and functions dealing with reactants still need to be implemented)
+- flowstation.py (`burn()` and functions dealing with reactants still need to be implemented)
 - cycle_component.py
 - compressor.py
 - duct.py
