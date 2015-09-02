@@ -163,13 +163,14 @@ class TestStatics(unittest.TestCase):
 
     # all test cases use the same checks here, so just re-use
     def _assert(self, flow):
-        assert_rel_error(self, flow.area, 32.006, .0001)
-        assert_rel_error(self, flow.Mach, .3, .0001)
-        assert_rel_error(self, flow.Ps, 376.194, .0001)
-        assert_rel_error(self, flow.Ts, 1081.781, .0001)
-        assert_rel_error(self, flow.Vflow, 479.519, .0001)
-        assert_rel_error(self, flow.rhos, .93826, .0001)
-        assert_rel_error(self, flow.gams, 1.37596, .0001)
+        TOL = 0.0005
+        assert_rel_error(self, flow.area, 32.006, TOL)
+        assert_rel_error(self, flow.Mach, .3, TOL)
+        assert_rel_error(self, flow.Ps, 376.194, TOL)
+        assert_rel_error(self, flow.Ts, 1081.781, TOL)
+        assert_rel_error(self, flow.Vflow, 479.519, TOL)
+        assert_rel_error(self, flow.rhos, .93826, TOL)
+        assert_rel_error(self, flow.gams, 1.37596, TOL)
 
     def test_solve_Mach(self):
         flow = flowstation.solve(W=self.W, Tt=self.Tt, Pt=self.Pt, Mach=0.3)
@@ -184,10 +185,9 @@ class TestStatics(unittest.TestCase):
         flow = flowstation.solve(W=self.W, Tt=self.Tt, Pt=self.Pt, Ps=376.194)
         self._assert(flow)
         
-# TODO implement the following:
-#    def test_setStaticTsPsMN(self):
-#        self.fs.setStaticTsPsMN(1081.802, 376.219, .3)
-#        self._assert()
+    def test_setStaticTsPsMN(self):
+        flow = flowstation.solve_Ts_Ps_MN(1081.802, 376.219, .3, W=self.W)
+        self._assert(flow)
 
     def test_solve_sub(self):
         flow = flowstation.solve(W=self.W, Tt=self.Tt, Pt=self.Pt, area=32.006, is_super=False)

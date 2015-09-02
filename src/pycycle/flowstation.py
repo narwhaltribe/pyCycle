@@ -75,9 +75,11 @@ def _set_comp(flow, species):
 #        self._set_comp()
 #        self.solve_statics(params, unknowns)
         
-def solve(Pt, Tt=-1.0, ht=-1.0, s=-1.0, W=0.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=-1.0, area=-1.0, is_super=False):
+def solve(Pt=-1.0, Tt=-1.0, ht=-1.0, s=-1.0, W=0.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=-1.0, area=-1.0, is_super=False):
     '''Calculate total and static conditions'''
-    assert Tt != -1 or ht != -1 or s != -1
+    if Ts != -1 and Ps != -1 and Mach != -1:
+        return solve_Ts_Ps_MN(Ts, Ps, Mach, ht=ht, W=W, is_super=is_super)
+    assert Pt != -1 and (Tt != -1 or ht != -1 or s != -1)
     flow = _init_flow()
     if Tt != -1:
         flow.set(T=Tt * 5.0 / 9.0, P=Pt * 6894.75729)
@@ -182,18 +184,18 @@ def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rh
     elif Ps != -1:
         out = solve_statics_Ps(Ps, s=s, Tt=Tt, ht=ht, W=W)
     else:
-        return Output(Ps=Pt, Ts=Tt, rhos=rhot, gams=gamt, hs=ht, Vflow=0.0, Mach=0.0, area=area, Wc=Wc, Vsonic=-1.0, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0)
+        return Output(Ps=Pt, Ts=Tt, rhos=rhot, gams=gamt, hs=ht, Vflow=0.0, Mach=0.0, area=area, Wc=Wc, Vsonic=-1.0, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=gamt, Cp=-1.0, Cv=-1.0)
     return out._replace(Wc=Wc)
 
-# TODO implement self.solve_statics_Ts_Ps_MN()
-#    def solve_statics_Ts_Ps_MN(self, params, unknowns):
-#        '''Set the statics based on Ts, Ps, and MN'''
-#        # UPDGRADED TO USE LOOPS
-#        # do this twice beacause gamt changes
-#        for n in range(2):
-#            unknowns['Tt:out'] = params['Ts:in'] * (1.0 + (unknowns['gamt'] - 1.0) / 2.0 * params['Mach:in'] ** 2)
-#            unknowns['Pt:out'] = params['Ps:in'] * (1.0 + (unknowns['gamt'] - 1.0) / 2.0 * params['Mach:in'] ** 2) ** (unknowns['gamt'] / (unknowns['gamt'] - 1.0))
-#            self.solve_totals_TP(params, unknowns)
-#            set_total_TP(variables, data, unknowns['Tt:out'], unknowns['Pt:out'])
-#        solve_statics_Mach(params, unknowns)
-#        unknowns['area:out'] = params['W'] / (unknowns['rhos'] * unknowns['Vflow']) * 144.0
+def solve_Ts_Ps_MN(Ts, Ps, Mach, gamt=0.0, s=-1.0, W=0.0, is_super=False):
+    '''Set variables based on Ts, Ps, and MN'''
+    # UPDGRADED TO USE LOOPS
+    # do this twice beacause gamt changes
+    for n in range(2):
+        Tt = Ts * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2)
+        Pt = Ps * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2) ** (gamt / (gamt - 1.0))
+        totals = solve(Pt=Pt, Tt=Tt, Ts=Ts, s=s, W=W, is_super=is_super)
+        gamt = totals.gamt
+    statics = solve_statics_Mach(Mach, Pt=Pt, gamt=gamt, Tt=Tt, s=totals.s, W=W, ht=totals.ht)
+    area = W / (statics.rhos * statics.Vflow) * 144.0
+    return Output(ht=totals.ht, Tt=Tt, Pt=Pt, s=totals.s, hs=totals.hs, Ts=Ts, Ps=Ps, Mach=Mach, area=area, Vsonic=statics.Vsonic, Vflow=statics.Vflow, rhos=statics.rhos, rhot=totals.rhot, gams=statics.gams, gamt=totals.gamt, Cp=totals.Cp, Cv=totals.Cv, Wc=totals.Wc)
