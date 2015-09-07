@@ -149,20 +149,6 @@ def solve_statics_Ps(Ps, s, Tt, ht, W):
     area = W / (rhos * Vflow) * 144.0
     return Output(Ps=Ps, Ts=Ts, rhos=rhos, gams=gams, hs=hs, Vflow=Vflow, Vsonic=Vsonic, Mach=Mach, area=area, ht=-1.0, Tt=-1.0, Pt=-1.0, s=-1.0, rhot=-1.0, gamt=-1.0, Cp=-1.0, Cv=-1.0, Wc=-1.0)
 
-def _find_limits(f, min_low, max_high, x_guess=None, accuracy=1e-4):
-    '''Find the extreme values of x for which f does not raise an exception'''
-    x_guess = (min_low + max_high) / 2.0 if x_guess is None else x_guess
-    def find_limit(inside, outside):
-        while abs(inside - outside) > accuracy:
-            x = (inside + outside) / 2.0
-            try:
-                f(x)
-                inside = x
-            except:
-                outside = x
-        return inside
-    return find_limit(x_guess, min_low), find_limit(x_guess, max_high)
-
 def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
     '''Calculate the statics based on area'''
     statics_M1 = solve_statics_Mach(Mach=1.0, Pt=Pt, gamt=gamt, ht=ht, s=s, Tt=Tt, W=W)
