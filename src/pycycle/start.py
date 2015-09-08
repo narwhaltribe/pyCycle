@@ -18,6 +18,7 @@ class FlowStart(CycleComponent):
         unknowns['flow_out:out:Pt'] = params['Pt']
         unknowns['flow_out:out:W'] = params['W']
         unknowns['flow_out:out:Mach'] = params['Mach']
+        print 'Mach', params['Mach']
         self._solve_flow_vars('flow_out', params, unknowns)
         if params['design']: 
             unknowns['area_des'] = unknowns['flow_out:out:area']

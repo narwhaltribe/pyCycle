@@ -1,236 +1,247 @@
-
 import unittest
 
-from openmdao.main.api import set_as_top, Assembly, Run_Once
-from openmdao.lib.drivers.api import BroydenSolver
-from openmdao.util.testutil import assert_rel_error
+from openmdao.core.problem import Problem
+from openmdao.core.group import Group
+from openmdao.drivers.scipy_optimizer import ScipyOptimizer
+from openmdao.components.exec_comp import ExecComp
+from openmdao.components.param_comp import ParamComp
+from openmdao.components.constraint import ConstraintComp
 
-from pycycle.api import Nozzle, FlowStart
-from pycycle import flowstation 
+from pycycle.nozzle import Nozzle
+from pycycle.start import FlowStart
+from pycycle.cycle_component import CycleComponent
+from pycycle import flowstation
+from test_util import assert_rel_error
 
 TOL = 0.001
 
 class NozzleTestCaseResonable(unittest.TestCase):
-
-    def setUp(self): 
-
-        self.comp = set_as_top(Nozzle())
-
-        fs = flowstation.FlowStation()
-        fs.W = 100.
-        fs.setTotalTP( 700., 50.0 )
-        fs.Mach = 0.40
-
-        self.comp.Fl_I = fs
-
-        fs_ref = flowstation.FlowStation()
-        fs_ref.W = 1.0
-        fs_ref.setTotalTP( 518.67, 15.0 )
-        fs_ref.Mach = 0.0
-
-        self.comp.Fl_ref = fs_ref
-
-        self.comp.design = True
-        self.comp.run()
-
-    def test_nozzle_off_design(self): 
+    def setUp(self):
+        self.comp = comp = Nozzle()
+        g = Group()
+        g.add('comp', comp)
+        self.p = p = Problem(root=g)
+        p.setup(check=False)
         
+        comp.params['flow_in:in:W'] = 100.0
+        comp.params['flow_in:in:Tt'] = 700.0
+        comp.params['flow_in:in:Pt'] = 50.0
+        comp.params['flow_in:in:Mach'] = 0.40
+        comp.params['back_Ps'] = 15.0
+        comp.params['design'] = True
 
-        assert_rel_error(self, self.comp.Fl_O.W, 100., TOL)
-        assert_rel_error(self, self.comp.Fl_O.Pt, 50., TOL)
-        assert_rel_error(self, self.comp.Fl_O.Tt, 700., TOL)
-        assert_rel_error(self, self.comp.Fl_O.Mach, 1.432, TOL)
-        assert_rel_error(self, self.comp.Fl_O.area, 112.88, TOL)
-        assert_rel_error(self, self.comp.Athroat_des, 99.59, TOL)
-        assert_rel_error(self, self.comp.Aexit_des, 112.88, TOL)
+        p.run()
+
+    def tearDown(self):
+        self.comp = None
+        self.p = None
+
+    def test_nozzle_off_design(self):
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:W'], 100.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Pt'], 50.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Tt'], 700.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Mach'], 1.432, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:area'], 112.88, TOL)
+        assert_rel_error(self, self.comp.unknowns['Athroat_des'], 99.59, TOL)
+        assert_rel_error(self, self.comp.unknowns['Aexit_des'], 112.88, TOL)
 
         #off design calcs
-        self.comp.run()
-        assert_rel_error(self,self.comp.Fl_O.W, 100., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Pt, 50., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Tt, 700., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Mach, 1.432, TOL)
-        assert_rel_error(self,self.comp.Fl_O.area, 112.88, TOL)
-        assert_rel_error(self, self.comp.Athroat_des, 99.59, TOL)
-        assert_rel_error(self, self.comp.Aexit_des, 112.88, TOL)
+        self.comp.params['design'] = False
 
+        self.p.run()
 
-    def test_nozzle_under(self): 
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:W'], 100.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Pt'], 50.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Tt'], 700.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Mach'], 1.432, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:area'], 112.88, TOL)
+        assert_rel_error(self, self.comp.unknowns['Athroat_des'], 99.59, TOL)
+        assert_rel_error(self, self.comp.unknowns['Aexit_des'], 112.88, TOL)
 
-        self.comp.Fl_ref.setTotalTP( 518.67, 14.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'UNDEREXPANDED')
-        assert_rel_error(self,self.comp.Fl_O.W, 100., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Pt, 50., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Tt, 700., TOL)
-        assert_rel_error(self, self.comp.Athroat_dmd, 99.59, TOL)
-        assert_rel_error(self, self.comp.Fl_O.area, 112.88, TOL)
+    def test_nozzle_under(self):
+        self.comp.params['back_Ps'] = 14.0
+        self.comp.params['design'] = False
 
-    def test_nozzle_over(self): 
-
-        self.comp.Fl_ref.setTotalTP( 518.67, 16.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'OVEREXPANDED')
-        assert_rel_error(self,self.comp.Fl_O.W, 100., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Pt, 50., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Tt, 700., TOL)
-        assert_rel_error(self, self.comp.Fl_O.Ps, 15.0, TOL)
-
+        self.p.run()
         
-        self.comp.Fl_ref.setTotalTP( 518.67, 19.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'OVEREXPANDED')
-        assert_rel_error(self, self.comp.Fl_O.Ps, 15.0, TOL)
-        assert_rel_error(self, self.comp.Fl_O.Mach, 1.432, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:W'], 100.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Pt'], 50.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Tt'], 700.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['Athroat_dmd'], 99.59, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:area'], 112.88, TOL)
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'UNDEREXPANDED')
 
+    def test_nozzle_over(self):
+        self.comp.params['back_Ps'] = 16.0
+        self.comp.params['design'] = False
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'OVEREXPANDED')
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:W'], 100.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Pt'], 50.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Tt'], 700.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Ps'], 15.0, TOL)
         
-        self.comp.Fl_ref.setTotalTP( 518.67, 24.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'OVEREXPANDED')
-
+        self.comp.params['back_Ps'] = 19.0
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'OVEREXPANDED')
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Ps'], 15.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Mach'], 1.432, TOL)
         
-        self.comp.Fl_ref.setTotalTP( 518.67, 27.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'OVEREXPANDED')
-
-
-        self.comp.Fl_ref.setTotalTP( 518.67, 32.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'OVEREXPANDED')
-
-    def _test_nozzle_normal_shock(self): 
-        self.comp.Fl_ref.setTotalTP( 518.67, 35.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'NORMAL_SHOCK')
-        assert_rel_error(self,self.comp.Fl_O.W, 100., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Pt, 50., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Tt, 700., TOL)
-        assert_rel_error(self, self.comp.Fl_O.Ps, 35.0, TOL)
-        assert_rel_error(self, self.comp.Fl_O.Mach, 0.697, TOL)
-
+        self.comp.params['back_Ps'] = 24.0
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'OVEREXPANDED')
         
-        self.comp.Fl_ref.setTotalTP( 518.67, 37.0 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'NORMAL_SHOCK')
-        assert_rel_error(self,self.comp.Fl_O.W, 100., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Pt, 50., TOL)
-        assert_rel_error(self,self.comp.Fl_O.Tt, 700., TOL)
-        assert_rel_error(self, self.comp.Fl_O.Ps, 37.0, TOL)
-        assert_rel_error(self, self.comp.Fl_O.Mach, 0.662, TOL)
+        self.comp.params['back_Ps'] = Pt=27.0
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'],'OVEREXPANDED')
+
+        self.comp.params['back_Ps'] = 32.0
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'],'OVEREXPANDED')
+
+    def test_nozzle_normal_shock(self):
+        self.comp.params['back_Ps'] = 35.0
+        self.comp.params['design'] = False
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'NORMAL_SHOCK')
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:W'], 100.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Pt'], 50.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Tt'], 700., TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Ps'], 35.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Mach'], 0.697, TOL)
         
+        self.comp.params['back_Ps'] = 37.0
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'NORMAL_SHOCK')
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:W'], 100.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Pt'], 50.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Tt'], 700.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Ps'], 37.0, TOL)
+        assert_rel_error(self, self.comp.unknowns['flow_out:out:Mach'], 0.662, TOL)
 
-    def test_nozzle_perfect_expand(self): 
-        self.comp.Fl_ref.setTotalTP( 518.67, 14.99 )
-        self.comp.run()
-        self.assertEqual(self.comp.switchRegime,'PERFECTLY_EXPANDED')
+    def test_nozzle_perfect_expand(self):
+        self.comp.params['design'] = False
+        self.comp.params['back_Ps'] = 14.99
+        self.p.run()
+        self.assertEqual(self.comp.unknowns['switchRegime'], 'PERFECTLY_EXPANDED')
 
-
-class NozzleTestCaseMassFlowIter(unittest.TestCase): 
-
-    def test_mass_flow_iter(self):
-
-        a = set_as_top(Assembly())
-        start = a.add('start', FlowStart())
-        ref = a.add('ref', FlowStart())
-        nozzle = a.add('nozzle', Nozzle())
-
-        
-        start.W = 100.
-        start.Tt = 700.
-        start.Pt = 50.0
-        start.Mach = 0.40
-
-        ref.W = 1.0
-        ref.Tt = 518.67
-        ref.Pt = 15.0 
-        ref.Mach = 0.0
-
-        a.connect('start.Fl_O','nozzle.Fl_I')
-        a.connect('ref.Fl_O','nozzle.Fl_ref')
-
-        a.add('design', Run_Once())
-        a.design.workflow.add(['start','ref','nozzle'])
-        a.design.add_event('start.design')
-        a.design.add_event('ref.design')
-        a.design.add_event('nozzle.design')
-
-        a.design.run()
-
-        a.add('off_design', BroydenSolver())
-        a.off_design.workflow.add(['start','ref','nozzle'])
-        a.off_design.add_parameter('start.W',low=-1e15,high=1e15)
-        a.off_design.add_constraint('nozzle.WqAexit=nozzle.WqAexit_dmd')
-
-
-        TOL = .001
-    
-        ref.Pt = 39.0
-        a.off_design.run()
-        self.assertEqual(nozzle.switchRegime,'UNCHOKED')
-        assert_rel_error(self, nozzle.Fl_O.W, 96.03, TOL)
-        assert_rel_error(self, nozzle.Fl_O.Mach, 0.607, TOL)
-        
-        # set W = 80.80, MN throat = 0.562, MN exit = 0.470
-        ref.Pt = 43.0 
-        a.off_design.run()
-        self.assertEqual(nozzle.switchRegime,'UNCHOKED')
-        assert_rel_error(self, nozzle.Fl_O.W, 80.80, TOL)
-        assert_rel_error(self, nozzle.Fl_O.Mach, 0.470, TOL)
-
-
+#class NozzleTestCaseMassFlowIter(unittest.TestCase):
+#    def test_mass_flow_iter(self):
+#        g = Group()
+#        start = g.add('start', FlowStart())
+#        ref = g.add('ref', FlowStart())
+#        nozzle = g.add('nozzle', Nozzle())
+#
+#        CycleComponent.connect_flows(g, 'start.flow_out', 'nozzle.flow_in')
+#        CycleComponent.connect_flows(g, 'ref.flow_out', 'nozzle.flow_ref')
+#
+#        g.add('W_start', ParamComp('W', 100.0))
+#        g.connect('W_start.W', 'start.W')
+#        g.add('WqAexit_resid', ExecComp('r = WqAexit - WqAexit_dmd', WqAexit=0.0, WqAexit_dmd=0.0))
+#        g.connect('nozzle.WqAexit', 'WqAexit_resid.WqAexit')
+#        g.connect('nozzle.WqAexit_dmd', 'WqAexit_resid.WqAexit_dmd')
+#
+#        p = Problem(root=g)
+#        p.setup(check=False)
+#
+#        start.params['W'] = 100.0
+#        start.params['Tt'] = 700.0
+#        start.params['Pt'] = 50.0
+#        start.params['Mach'] = 0.4
+#
+#        ref.params['W'] = 1.0
+#        ref.params['Tt'] = 518.67
+#        ref.params['Pt'] = 15.0
+#        ref.params['Mach'] = 0.0
+#        comp.params['back_Ps'] = flowstation.solve(W=1.0, Tt=518.67, Pt=15.0).Ps
+#
+#        start.params['design'] = ref.params['design'] = nozzle.params['design'] = True
+#
+#        p.run()
+#
+#        p.driver = ScipyOptimizer()
+#        p.driver.options['optimizer'] = 'COBYLA'
+#        p.driver.add_param('W_start.W', low=1e-15, high=1000)
+#        p.driver.add_objective('WqAexit_resid.r')
+#        
+#        p.setup(check=False)
+#
+#        start.params['Tt'] = 700.0
+#        start.params['Pt'] = 50.0
+#        start.params['Mach'] = 0.4
+#
+#        ref.params['W'] = 1.0
+#        ref.params['Tt'] = 518.67
+#        ref.params['Mach'] = 0.0
+#        comp.params['back_Ps'] = flowstation.solve(W=1.0, Tt=518.67, Pt=15.0).Ps
+#
+#        start.params['design'] = ref.params['design'] = nozzle.params['design'] = False
+#        ref.params['Pt'] = 39.0
+#
+#        p.run()
+#
+#        TOL = 0.001
+#        self.assertEqual(nozzle.unknowns['switchRegime'], 'UNCHOKED')
+#        assert_rel_error(self, nozzle.unknowns['flow_out:out:W'], 96.03, TOL)
+#        assert_rel_error(self, nozzle.unknowns['flow_out:out:Mach'], 0.607, TOL)
+#        
+#        # set W = 80.80, MN throat = 0.562, MN exit = 0.470
+#        comp.params['back_Ps'] = flowstation.solve(W=1.0, Tt=518.67, Pt=15.0).Ps
+#        ref.params['Pt'] = 43.0
+#
+#        p.run()
+#        
+#        self.assertEqual(nozzle.unknowns['switchRegime'], 'UNCHOKED')
+#        assert_rel_error(self, nozzle.unknowns['flow_out:out:W'], 80.80, TOL)
+#        assert_rel_error(self, nozzle.unknowns['flow_out:out:Mach'], 0.47, TOL)
 
 class NozzleTestCaseVeryLowTemp(unittest.TestCase):
-
     def test_nozzle_very_low_temperatures(self): 
-        comp = set_as_top(Nozzle())
+        comp = Nozzle()
+        g = Group()
+        g.add('comp', comp)
+        p = Problem(root=g)
+        p.setup(check=False)
 
-        fs = flowstation.FlowStation()
-        fs.W = .639
-        fs.setTotalTP(540. , 0.34)
-        fs.Mach = 0.4
+        comp.params['flow_in:in:W'] = 0.639
+        comp.params['flow_in:in:Tt'] = 540.0
+        comp.params['flow_in:in:Pt'] = 0.34
+        comp.params['flow_in:in:Mach'] = 0.4
+        comp.params['back_Ps'] = 0.0272
+        comp.params['design'] = True
+        
+        p.run()
 
-        comp.Fl_I = fs
-
-        fs_ref = flowstation.FlowStation()
-        fs_ref.W = 3.488
-        fs_ref.setTotalTP(630.75 , 0.0272)
-        fs_ref.Mach = 1.0
-
-        comp.Fl_ref = fs_ref
-        comp.design = True
-        comp.run()
-
-        TOL = .01 #this test needs larger tollerance due to exteremely low temperatures
-        assert_rel_error(self,comp.Fl_O.W, .639, TOL)
-        assert_rel_error(self,comp.Fl_O.Pt, .34, TOL)
-        assert_rel_error(self,comp.Fl_O.Tt, 540.0, TOL)
-        assert_rel_error(self,comp.Fl_O.Mach, 2.7092, TOL)
-        assert_rel_error(self,comp.Fl_O.area, 264.204, TOL)
-        assert_rel_error(self,comp.Fl_O.rhos, .000177443, TOL)
-        assert_rel_error(self,comp.Fg, 38.98, TOL)
+        TOL = 0.01 #this test needs larger tollerance due to exteremely low temperatures
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 0.639, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.34, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 540.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 2.7092, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 264.204, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], .000177443, TOL)
+        assert_rel_error(self, comp.unknowns['Fg'], 38.98, TOL)
 
         #off design calcs
-        assert_rel_error(self,comp.Fl_O.W, .639, TOL)
-        assert_rel_error(self,comp.Fl_O.Pt, .34, TOL)
-        assert_rel_error(self,comp.Fl_O.Tt, 540.0, TOL)
-        assert_rel_error(self,comp.Fl_O.Mach, 2.7092, TOL)
-        assert_rel_error(self,comp.Fl_O.area, 264.204, TOL)
-        assert_rel_error(self,comp.Fl_O.rhos, .000177443, TOL)
+        comp.params['design'] = False
+        p.run()
 
+        self.assertEqual(comp.unknowns['switchRegime'], 'PERFECTLY_EXPANDED')
+        assert_rel_error(self, comp.unknowns['flow_out:out:W'], 0.639, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Pt'], 0.34, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Tt'], 540.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:Mach'], 2.7092, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:area'], 264.204, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out:out:rhos'], 0.000177443, TOL)
 
-        comp.Fl_ref.setTotalTP(630.75 , 0.03)
-        comp.run()
-        self.assertEqual(comp.switchRegime,'OVEREXPANDED')
+        comp.params['back_Ps'] = 0.03
+        p.run()
 
-        comp.Fl_ref.setTotalTP(630.75 , 0.026)
-        comp.run()
-        self.assertEqual(comp.switchRegime,'UNDEREXPANDED')
+        self.assertEqual(comp.unknowns['switchRegime'], 'OVEREXPANDED')
 
-        comp.Fl_ref.setTotalTP(630.75 , 0.0272)
-        comp.run()
-        self.assertEqual(comp.switchRegime,'PERFECTLY_EXPANDED')
+        comp.params['back_Ps'] = 0.026
+        p.run()
 
-        
+        self.assertEqual(comp.unknowns['switchRegime'], 'UNDEREXPANDED')
+ 
 if __name__ == "__main__":
     unittest.main()
-    
