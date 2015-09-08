@@ -9,6 +9,8 @@ GAS_CONSTANT = 0.0685592 # Btu/lbm-R
 
 Output = namedtuple('Output', ['ht', 'Tt', 'Pt', 's', 'hs', 'Ts', 'Ps', 'Mach', 'area', 'Vsonic', 'Vflow', 'rhos', 'rhot', 'gams', 'gamt', 'Cp', 'Cv', 'Wc'])
 
+class ArgumentError(Exception): pass
+
 REACTANT_NAMES = []
 REACTANT_SPLITS =[]
 def add_reactant(reactants, splits):
@@ -78,8 +80,11 @@ def _set_comp(flow, species):
 def solve(Pt=-1.0, Tt=-1.0, ht=-1.0, s=-1.0, W=0.0, hs=-1.0, Ts=-1.0, Ps=-1.0, Mach=-1.0, area=-1.0, is_super=False):
     '''Calculate total and static conditions'''
     if Ts != -1 and Ps != -1 and Mach != -1:
+        if Pt != -1 or Tt != -1 or ht != -1 or s != -1:
+            raise ArgumentError('Too many arguments to solve by Ts, Ps, and Mach.')
         return solve_Ts_Ps_MN(Ts, Ps, Mach, W=W, is_super=is_super)
-    assert Pt != -1 and (Tt != -1 or ht != -1 or s != -1)
+    if Pt == -1 or (Tt == -1 and ht == -1 and s == -1):
+        raise ArgumentError('Too few arguments to solve by Pt.')
     flow = _init_flow()
     if Tt != -1:
         flow.set(T=Tt * 5.0 / 9.0, P=Pt * 6894.75729)
@@ -153,7 +158,6 @@ def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
     '''Calculate the statics based on area'''
     statics_M1 = solve_statics_Mach(Mach=1.0, Pt=Pt, gamt=gamt, ht=ht, s=s, Tt=Tt, W=W)
     # find the subsonic solution first
-    guess = (Pt + statics_M1.Ps) / 2.0
     out = [None] # Makes out[0] a reference
     def f(Ps):
         out[0] = solve_statics_Ps(Ps=Ps, s=s, Tt=Tt, ht=ht, W=W)
