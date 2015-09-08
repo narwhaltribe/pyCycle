@@ -135,7 +135,7 @@ def solve_statics_Mach(Mach, Pt, gamt, ht, s, Tt, W):
     def f(Ps):
         out[0] = solve_statics_Ps(Ps=Ps, s=s, Tt=Tt, ht=ht, W=W)
         return out[0].Mach - Mach
-    Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2) ** (gamt / (1.0 - gamt)) * 0.9
+    Ps_guess = Pt * (1.0 + (gamt - 1.0) / 2.0 * Mach ** 2) ** (gamt / (1.0 - gamt))
     newton(f, Ps_guess)
     return out[0]
 

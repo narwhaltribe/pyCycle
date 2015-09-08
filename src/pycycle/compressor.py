@@ -19,7 +19,7 @@ class Compressor(CycleComponent):
         self.add_output('eff_poly', 0.0, desc='polytropic efficiency at the operating condition')
         self.add_output('pwr', 0.0, units='hp', desc='power required to run the compressor at the operating condition')
         self.add_output('tip_radius', 0.0, units='inch', desc='radius at the tip of the compressor')
-        self.add_output('hub_radius', 0.0, units='inch', desc='radius at the tip of the compressor')
+        self.add_output('hub_radius', 0.0, units='inch', desc='radius at the hub of the compressor')
         self._add_flowstation('flow_in')
         self._add_flowstation('flow_out')
 
