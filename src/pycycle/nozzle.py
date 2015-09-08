@@ -63,8 +63,8 @@ class Nozzle(CycleComponent):
             elif params['back_Ps'] >= flow_out_shock.Ps:
                 # between curves 4 and c
                 unknowns['switchRegime'] = 'NORMAL_SHOCK'
-                unknowns['flow_out:out:Tt'] = flow_out_throat.Tt
-                unknowns['flow_out:out:Pt'] = flow_out_throat.Tt
+                unknowns['flow_out:out:Tt'] = flow_throat.Tt
+                unknowns['flow_out:out:Pt'] = flow_out_shock.Pt
                 unknowns['flow_out:out:Ps'] = params['back_Ps']
             elif params['back_Ps'] > flow_out_supersonic.Ps:
                 # between curves c and 5
