@@ -3,7 +3,7 @@ import unittest
 from openmdao.core.problem import Problem
 from openmdao.core.group import Group
 
-from pycycle.api import Compressor
+from pycycle.components import Compressor
 from test_util import assert_rel_error
 from pycycle import flowstation
 
