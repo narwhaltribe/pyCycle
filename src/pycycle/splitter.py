@@ -1,95 +1,75 @@
-from openmdao.main.api import Component
-from openmdao.lib.datatypes.api import Float, VarTree
-
-from pycycle.flowstation import FlowStation, FlowStationVar
 from pycycle.cycle_component import CycleComponent
 
+class SplitterBPR(CycleComponent):
+    '''Takes a single incoming air stream and splits it into two separate ones based on a given bypass ratio'''
+    def __init__(self):
+        super(SplitterBPR, self).__init__()
+        self._add_flowstation('flow_in')
+        self._add_flowstation('flow_out_1')
+        self._add_flowstation('flow_out_2')
 
-class SplitterBPR(CycleComponent): 
-    """Takes a single incoming air stream and splits it into two separate ones
-    based on a given bypass ratio"""
-
-    BPR = Float(2.0, iotype="in", desc="ratio of mass flow in Fl_O2 to Fl_O1")
-    MNexit1_des = Float(.4, iotype="in", 
-        desc="mach number at the design condition for Fl_O1")
-    MNexit2_des = Float(.4, iotype="in", 
-        desc="mach number at the design condition for Fl_O2")
-
-
-    BPR_des = Float(iotype="out", desc="bypass ratio of the splitter at the design condition")
-    Fl_I = FlowStationVar(iotype="in", desc="incoming air stream to splitter", copy=None)
-    Fl_O1 = FlowStationVar(iotype="out", desc="outgoing air stream 1", copy=None)
-    Fl_O2 = FlowStationVar(iotype="out", desc="outgoing air stream 2", copy=None)
-
-
-    def execute(self): 
-        Fl_I = self.Fl_I
-        Fl_O1 = self.Fl_O1
-        Fl_O2 = self.Fl_O2
-
-        Fl_O1.W = Fl_I.W/(self.BPR+1)
-        Fl_O2.W = Fl_O1.W*self.BPR
-
-        Fl_O1.setTotalTP(Fl_I.Tt, Fl_I.Pt)
-        Fl_O2.setTotalTP(Fl_I.Tt, Fl_I.Pt)
+        self.add_param('BPR', 2.0, desc='ratio of mass flow in flow_out_1 to flow_out_2')
+        self.add_param('MNexit1_des', 0.4, desc='Mach number at design conditions for flow_out_1')
+        self.add_param('MNexit2_des', 0.4, desc='Mach number at design conditions for flow_out_2')
         
+        self.add_output('BPR_des', 0.0, desc='bypass ratio of splitter at design conditions')
 
-        if self.run_design: 
-            Fl_O1.Mach = self.MNexit1_des
-            Fl_O2.Mach = self.MNexit2_des
+    def solve_nonlinear(self, params, unknowns, resids):
+        self._clear_unknowns('flow_in', unknowns)
+        self._clear_unknowns('flow_out_1', unknowns)
+        self._clear_unknowns('flow_out_2', unknowns)
+        self._solve_flow_vars('flow_in', params, unknowns)
+        unknowns['flow_out_1:out:W'] = unknowns['flow_in:out:W'] / (params['BPR'] + 1.0)
+        unknowns['flow_out_2:out:W'] = unknowns['flow_out_1:out:W'] * params['BPR']
+        unknowns['flow_out_1:out:Tt'] = unknowns['flow_out_2:out:Tt'] = unknowns['flow_in:out:Tt']
+        unknowns['flow_out_1:out:Pt'] = unknowns['flow_out_2:out:Pt'] = unknowns['flow_in:out:Pt']
+        if params['design']:
+            unknowns['flow_out_1:out:Mach'] = params['MNexit1_des']
+            unknowns['flow_out_2:out:Mach'] = params['MNexit2_des']
+            self._solve_flow_vars('flow_out_1', params, unknowns)
+            self._solve_flow_vars('flow_out_2', params, unknowns)
+            self._exit_area_1_des = unknowns['flow_out_1:out:area']
+            self._exit_area_2_des = unknowns['flow_out_2:out:area']
+            unknowns['BPR_des'] = params['BPR']
+        else:
+            unknowns['flow_out_1:out:area'] = self._exit_area_1_des
+            unknowns['flow_out_2:out:area'] = self._exit_area_2_des
+            self._solve_flow_vars('flow_out_1', params, unknowns)
+            self._solve_flow_vars('flow_out_2', params, unknowns)
 
-            self._exit_area_1_des = Fl_O1.area
-            self._exit_area_2_des = Fl_O2.area
+class SplitterW(CycleComponent):
+    '''Takes a single incoming air stream and splits it into two separate ones based on a given mass flow for the Fl_O1'''
+    def __init__(self):
+        super(SplitterW, self).__init__()
+        self._add_flowstation('flow_in')
+        self._add_flowstation('flow_out_1')
+        self._add_flowstation('flow_out_2')
 
-            self.BPR_des = self.BPR
-        else: 
-            Fl_O1.area = self._exit_area_1_des
-            Fl_O2.area = self._exit_area_2_des
+        self.add_param('W1_des', 0.44, desc='design mass flow in flow_out_1', units='lbm/s')
+        self.add_param('MNexit1_des', 0.4, desc='Mach number at design conditions for flow_out_1')
+        self.add_param('MNexit2_des', 0.4, desc='Mach number at design conditions for flow_out_2')
 
-class SplitterW(CycleComponent): 
-
-    W1_des = Float(.44, iotype="in", desc="design mass flow in Fl_O1", units="lbm/s")
-    MNexit1_des = Float(.4, iotype="in", 
-        desc="mach number at the design condition for Fl_O1")
-    MNexit2_des = Float(.4, iotype="in", 
-        desc="mach number at the design condition for Fl_O2")
-
-    Fl_I = FlowStationVar(iotype="in", desc="incoming air stream to splitter", copy=None)
-    Fl_O1 = FlowStationVar(iotype="out", desc="outgoing air stream 1", copy=None)
-    Fl_O2 = FlowStationVar(iotype="out", desc="outgoing air stream 2", copy=None)
-
-    def execute(self): 
-        """Takes a single incoming air stream and splits it into two separate ones
-        based on a given mass flow for the Fl_O1"""
-
-        Fl_I = self.Fl_I
-        Fl_O1 = self.Fl_O1
-        Fl_O2 = self.Fl_O2
-        Fl_O1.setTotalTP(Fl_I.Tt, Fl_I.Pt)
-        Fl_O2.setTotalTP(Fl_I.Tt, Fl_I.Pt)
-
-        if self.run_design: 
-            Fl_O1.W = self.W1_des
-            Fl_O2.W = Fl_I.W - self.W1_des
-
-            self._BPR_des = Fl_O2.W/Fl_O1.W
-
-            Fl_O1.Mach = self.MNexit1_des
-            Fl_O2.Mach = self.MNexit2_des
-
-            self._exit_area_1_des = Fl_O1.area
-            self._exit_area_2_des = Fl_O2.area
-        else: 
-            Fl_O1.W = Fl_I.W/(self._BPR_des+1)
-            Fl_O2.W = Fl_O1.W*self._BPR_des
-
-            Fl_O1.area = self._exit_area_1_des
-            Fl_O2.area = self._exit_area_2_des
-
-
-if __name__ == "__main__": 
-    from openmdao.main.api import set_as_top
-
-    c = set_as_top(Splitter())
-    c.run()
-
+    def solve_nonlinear(self, params, unknowns, resids):
+        self._clear_unknowns('flow_in', unknowns)
+        self._clear_unknowns('flow_out_1', unknowns)
+        self._clear_unknowns('flow_out_2', unknowns)
+        self._solve_flow_vars('flow_in', params, unknowns)
+        unknowns['flow_out_1:out:Tt'] = unknowns['flow_out_2:out:Tt'] = unknowns['flow_in:out:Tt']
+        unknowns['flow_out_1:out:Pt'] = unknowns['flow_out_2:out:Pt'] = unknowns['flow_in:out:Pt']
+        if params['design']:
+            unknowns['flow_out_1:out:W'] = params['W1_des']
+            unknowns['flow_out_2:out:W'] = unknowns['flow_in:out:W'] - params['W1_des']
+            self._BPR_des = unknowns['flow_out_2:out:W'] / unknowns['flow_out_1:out:W']
+            unknowns['flow_out_1:out:Mach'] = params['MNexit1_des']
+            unknowns['flow_out_2:out:Mach'] = params['MNexit2_des']
+            self._solve_flow_vars('flow_out_1', params, unknowns)
+            self._solve_flow_vars('flow_out_2', params, unknowns)
+            self._exit_area_1_des = unknowns['flow_out_1:out:area']
+            self._exit_area_2_des = unknowns['flow_out_2:out:area']
+        else:
+            unknowns['flow_out_1:out:W'] = unknowns['flow_in:out:W'] / (self._BPR_des + 1.0)
+            unknowns['flow_out_2:out:W'] = unknowns['flow_out_1:out:W'] * self._BPR_des
+            unknowns['flow_out_1:out:area'] = self._exit_area_1_des
+            unknowns['flow_out_2:out:area'] = self._exit_area_2_des
+            self._solve_flow_vars('flow_out_1', params, unknowns)
+            self._solve_flow_vars('flow_out_2', params, unknowns)

@@ -1,110 +1,91 @@
-
 import unittest
 
-from openmdao.main.api import set_as_top
-from openmdao.util.testutil import assert_rel_error
+from openmdao.core.group import Group
+from openmdao.core.problem import Problem
 
-from pycycle import splitter, flowstation
+from test_util import assert_rel_error
+from pycycle.components import SplitterBPR, SplitterW
 
 class SplitterTestCase(unittest.TestCase):
-
-    def setUp(self): 
-        self.comp = set_as_top(splitter.SplitterBPR())
-
-        self.fs = flowstation.FlowStation()
-        self.fs.W = 3.48771299
-        self.fs.setTotalTP(630.74523, 0.0271945)
-        self.fs.Mach = 1
-
-    def tearDown(self): 
-        comp = None
-
-    def test_splitter(self): 
-        comp = self.comp
-
-        comp.BPR = 2.2285
-        comp.MNexit1_des = 1.00
-        comp.MNexit2_des = 1.00
-        comp.design = True
-
-        comp.Fl_I = self.fs
-
-        comp.run()
-
-    def check(self, comp): 
-
-
+    def check(self, comp):
         TOL = .001
-        assert_rel_error(self,comp.Fl_O1.W, 1.08 ,TOL)
-        assert_rel_error(self,comp.Fl_O1.Pt, 0.0271945 , TOL)
-        assert_rel_error(self,comp.Fl_O1.Tt, 630.75, TOL)
-        assert_rel_error(self,comp.Fl_O1.rhos, 0.0000737216 , TOL)
-        assert_rel_error(self,comp.Fl_O1.Mach, 1.0 ,TOL)
-        assert_rel_error(self,comp.Fl_O1.area, 1877.2, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:W'], 1.08, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:Pt'], 0.0271945, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:Tt'], 630.75, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:Mach'], 1.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:area'], 1877.2, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:rhos'], 0.0000737216, TOL)
 
-        assert_rel_error(self,comp.Fl_O2.W, 2.407 ,TOL)
-        assert_rel_error(self,comp.Fl_O2.Pt, 0.0271945 , TOL)
-        assert_rel_error(self,comp.Fl_O2.Tt, 630.75, TOL)
-        assert_rel_error(self,comp.Fl_O2.rhos, 0.0000737216 , TOL)
-        assert_rel_error(self,comp.Fl_O2.Mach, 1.0 ,TOL)
-        assert_rel_error(self,comp.Fl_O2.area, 4183.4, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:W'], 2.407, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:Pt'], 0.0271945, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:Tt'], 630.75, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:Mach'], 1.0, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:area'], 4183.4, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:rhos'], 0.0000737216, TOL)
 
-    def test_splitterBPR(self): 
-        comp = self.comp
-
-        comp.BPR = 2.2285
-        comp.MNexit1_des = 1.00
-        comp.MNexit2_des = 1.00
-        comp.design = True
-
-        comp.Fl_I = self.fs
-
-        comp.run()
-
-        self.check(comp)
-
-        #run off design
-        comp.run()
-
-        self.check(comp)
-
-        #try changing something
-
-        TOL = 0.001
-        comp.Fl_I.W *= .95
-        comp.run()
-        assert_rel_error(self,comp.Fl_O1.Mach, .76922 ,TOL)
-        assert_rel_error(self,comp.Fl_O2.Mach, .76922 ,TOL)
-
-    def test_splitterW(self): 
-        comp = self.comp = set_as_top(splitter.SplitterW())
-
-        comp.W1_des = 1.08
-        comp.MNexit1_des = 1.00
-        comp.MNexit2_des = 1.00
-        comp.design = True
-
-        comp.Fl_I = self.fs
-
-        comp.run()
-
-        self.check(comp)
-
-        #run off design
-        comp.run()
-
-        self.check(comp)
-
-        #try changing something
-
-        TOL = 0.001
-        comp.Fl_I.W *= .95
-        comp.run()
-        assert_rel_error(self,comp.Fl_O1.Mach, .76922 ,TOL)
-        assert_rel_error(self,comp.Fl_O2.Mach, .76922 ,TOL)
-
-
+    def test_splitterBPR(self):
+        g = Group()
+        p = Problem(root=g)
+        comp = g.add('comp', SplitterBPR())
+        p.setup(check=False)
         
-if __name__ == "__main__":
+        comp.params['flow_in:in:W'] = 3.48771299
+        comp.params['flow_in:in:Tt'] = 630.74523
+        comp.params['flow_in:in:Pt'] = 0.0271945
+        comp.params['flow_in:in:Mach'] = 1.0
+
+        comp.params['BPR'] = 2.2285
+        comp.params['MNexit1_des'] = 1.0
+        comp.params['MNexit2_des'] = 1.0
+        comp.params['design'] = True
+        p.run()
+        self.check(comp)
+
+        comp.params['design'] = False
+        comp.params['flow_out_1:in:is_super'] = True
+        comp.params['flow_out_2:in:is_super'] = True
+        p.run()
+        self.check(comp)
+
+        comp.params['flow_in:in:W'] *= 0.95
+        comp.params['flow_out_1:in:is_super'] = False
+        comp.params['flow_out_2:in:is_super'] = False
+        p.run()
+        TOL = 0.001
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:Mach'], 0.76922, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:Mach'], 0.76922, TOL)
+
+    def test_splitterW(self):
+        g = Group()
+        p = Problem(root=g)
+        comp = g.add('comp', SplitterW())
+        p.setup(check=False)
+        
+        comp.params['W1_des'] = 1.08
+        comp.params['MNexit1_des'] = 1.0
+        comp.params['MNexit2_des'] = 1.0
+        comp.params['design'] = True
+
+        comp.params['flow_in:in:W'] = 3.48771299
+        comp.params['flow_in:in:Tt'] = 630.74523
+        comp.params['flow_in:in:Pt'] = 0.0271945
+        comp.params['flow_in:in:Mach'] = 1.0
+        p.run()
+        self.check(comp)
+
+        comp.params['design'] = False
+        comp.params['flow_out_1:in:is_super'] = True
+        comp.params['flow_out_2:in:is_super'] = True
+        p.run()
+        self.check(comp)
+
+        comp.params['flow_in:in:W'] *= 0.95
+        comp.params['flow_out_1:in:is_super'] = False
+        comp.params['flow_out_2:in:is_super'] = False
+        p.run()
+        TOL = 0.001
+        assert_rel_error(self, comp.unknowns['flow_out_1:out:Mach'], 0.76922, TOL)
+        assert_rel_error(self, comp.unknowns['flow_out_2:out:Mach'], 0.76922, TOL)
+
+if __name__ == '__main__':
     unittest.main()
-    
