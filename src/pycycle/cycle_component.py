@@ -46,8 +46,7 @@ class CycleComponent(Component):
     def _clear_unknowns(self, name, unknowns, var_names=FLOW_VARS):
         '''Reset all of a FlowStation's unknowns to empty (-1.0).'''
         for var_name in var_names:
-            v = False if var_name == 'is_super' else -1.0
-            unknowns['%s:out:%s' % (name, var_name)] = v
+            unknowns['%s:out:%s' % (name, var_name)] = FLOW_VARS[var_name][1]
 
     def _solve_flow_vars(self, name, params, unknowns):
         '''Solve a FlowStation's unknowns based on variables specified as parameters.'''
@@ -59,7 +58,7 @@ class CycleComponent(Component):
                 return params[param_name]
             if not param_name in params.keys():
                 return unknowns[output_name]
-            return unknowns[output_name] if unknowns[output_name] != -1 else params[param_name]
+            return unknowns[output_name] if unknowns[output_name] != FLOW_VARS[var_name][1] else params[param_name]
         def set_vars(var_dict):
             for var_name, val in var_dict.iteritems():
                 output_name = '%s:out:%s' % (name, var_name)

@@ -165,13 +165,15 @@ def solve_statics_area(area, Pt, gamt, ht, s, Tt, W, is_super):
     brentq(f, statics_M1.Ps, Pt - 1e-4)
     # if you want the supersonic one, just keep going with a little lower initial guess    
     if is_super:
+        if statics_M1.area == area:
+            return statics_M1
         Ps_guess = out[0].Ps * out[0].Mach ** 2 * 2 * gamt / (gamt + 1.0)
         newton(f, Ps_guess) # Ps_guess is extremely close, but solver is slightly more accurate
     return out[0]
 
 def solve_statics(Tt=-1.0, Pt=-1.0, Mach=-1.0, area=-1.0, Ps=-1.0, gamt=-1.0, rhot=-1.0, Ts=-1.0, ht=-1.0, s=-1.0, W=0.0, is_super=False):
     '''Determine which static calc to use'''
-    if Tt > 0 and Pt > 0: # if non zero
+    if Tt > 0 and Pt > 0 and W > 0: # if non zero
         Wc = math.sqrt(W * (Tt / 518.67)) / (Pt / 14.696)
     else:
         Wc = -1.0
