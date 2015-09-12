@@ -34,6 +34,8 @@ The `CycleComponent` class has been given new helper functions for initializing,
 
 The `HeatExchanger` component no longer includes state variables `resid_Qmax` and `resid_e_balance`. Instead, `T_cold_out` and `T_hot_out` have been made outputs and are solved by a newton solver within the component's `solve_nonlinear()` method.
 
+`pycyle.api` has been renamed `pycycle.components` to agree with OpenMDAO 1.0 naming convention. `pycycle.flowstation` is not a component, so it must be imported separately.
+
 ---
 
 # pyCycle
