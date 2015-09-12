@@ -1,5 +1,3 @@
-**This code is under development and not yet suitable for general use.**
-
 # pyCycle for OpenMDAO 1.0
 
 ---
@@ -12,21 +10,21 @@
 - duct.py
 - heat_exchanger.py
 - inlet.py
+- splitter.py
 - start.py
 - test/test_compressor.py
 - test/test_duct.py
 - test/test_flowstation.py (some functions still need to be implemented)
 - test/test_heat_exchanger.py
 - test/test_inlet.py
+- test/test_splitter.py
 - test/test_start.py
 - test/test_util.py (new in this fork)
 
 **Files not ready for OpenMDAO 1.0**
 
-- nozzle.py
-- splitter.py
+- nozzle.py - ***do all regimes take Tt and Pt from throat conditions?***
 - test/test_nozzle.py
-- test/test_splitter.py
 
 **Changes**
 
