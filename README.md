@@ -1,3 +1,5 @@
+**WARNING: This code contains significant known errors. As development of this fork is suspended for the time being, consider it a starting point/reference for your own work and not a fully operational plugin.**
+
 # pyCycle for OpenMDAO 1.0
 
 ---
